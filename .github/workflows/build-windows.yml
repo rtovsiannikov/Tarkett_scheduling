@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,31 +32,9 @@ jobs:
           if (!(Test-Path "tarkett_scheduler/core.py")) { throw "Missing tarkett_scheduler/core.py. Patch may have been uploaded into a nested folder instead of repository root." }
           if (!(Test-Path "desktop_app/main.py")) { throw "Missing desktop_app/main.py. Patch may have been uploaded into a nested folder instead of repository root." }
           if (!(Test-Path "run_desktop_app.py")) { throw "Missing run_desktop_app.py" }
+          if (!(Test-Path "scripts/check_ortools.py")) { throw "Missing scripts/check_ortools.py" }
 
-      - name: Verify OR-Tools CP-SAT dependency
-        shell: pwsh
-        run: |
-          @'
-          import sys
-          from importlib.metadata import version
-          from ortools.sat.python import cp_model
-
-          print("Python:", sys.version)
-          print("ortools:", version("ortools"))
-
-          model = cp_model.CpModel()
-          x = model.NewBoolVar("x")
-          model.Maximize(x)
-          solver = cp_model.CpSolver()
-          solver.parameters.max_time_in_seconds = 2.0
-          status = solver.Solve(model)
-
-          print("CP-SAT status:", solver.StatusName(status), "x=", solver.Value(x))
-          if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE) or solver.Value(x) != 1:
-              raise SystemExit("CP-SAT smoke model failed")
-          '@ | python -
-
-      - name: Verify project uses CP-SAT
+      - name: Verify OR-Tools and project CP-SAT path
         shell: pwsh
         run: python scripts/check_ortools.py
 
@@ -68,7 +46,7 @@ jobs:
         shell: pwsh
         run: python -m PyInstaller FactoryScheduler.spec --clean --noconfirm
 
-      - name: Verify built executable contains CP-SAT
+      - name: Verify built executable contains OR-Tools
         shell: pwsh
         run: |
           if (!(Test-Path "dist/TarkettFlowScheduler/TarkettFlowScheduler.exe")) {
