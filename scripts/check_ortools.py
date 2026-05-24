@@ -1,8 +1,12 @@
 """Build-time and bundled-app smoke test for the OR-Tools CP-SAT dependency.
 
-This test intentionally uses a compact generated dataset.  The default demo
-bundle can be much larger and may require more CP-SAT time on GitHub runners;
-that is a modeling/performance question, not a packaging/dependency failure.
+This script is intentionally safe to run as:
+
+    python scripts/check_ortools.py
+
+When Python runs a file from the ``scripts`` directory, ``sys.path[0]`` points to
+``scripts`` rather than the repository root.  Therefore we explicitly prepend the
+repo root before importing the local ``tarkett_scheduler`` package.
 """
 from __future__ import annotations
 
@@ -11,6 +15,12 @@ from pathlib import Path
 import shutil
 import sys
 import traceback
+
+# Make local project imports work when this file is executed as
+# ``python scripts/check_ortools.py`` from GitHub Actions / PowerShell.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from ortools.sat.python import cp_model
 
@@ -33,7 +43,7 @@ def _solve_tiny_cp_sat_model() -> None:
 
 
 def _solve_compact_scheduler_model() -> None:
-    bundle_dir = Path("generated_demo_data") / "ortools_smoke_bundle"
+    bundle_dir = PROJECT_ROOT / "generated_demo_data" / "ortools_smoke_bundle"
     if bundle_dir.exists():
         shutil.rmtree(bundle_dir)
 
@@ -67,14 +77,14 @@ def _solve_compact_scheduler_model() -> None:
 
 
 def main() -> None:
+    print("Working directory:", Path.cwd())
+    print("Project root:", PROJECT_ROOT)
     print("Python:", sys.version)
     print("ortools:", version("ortools"))
     _solve_tiny_cp_sat_model()
     try:
         _solve_compact_scheduler_model()
     except Exception:
-        # Print full traceback to GitHub Actions logs.  This makes the next
-        # failure actionable instead of only showing 'exit code 1'.
         traceback.print_exc()
         raise
     print("OR-Tools CP-SAT smoke test passed")
