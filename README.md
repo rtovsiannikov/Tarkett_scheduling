@@ -301,3 +301,21 @@ GitHub Actions:
 ## Notes for v3 inventory fix
 
 If several inventory events occur at the same timestamp, the system now applies initial stock, planned arrivals and production outputs before consumption events. This removes false negative spikes in the inventory chart, for example when a batch leaves PRESS and enters LACK at the exact same minute. A remaining `below_safety` event is still shown as a real warning, not as a negative inventory error.
+
+
+## Building with OR-Tools / CP-SAT
+
+For the Windows desktop executable, use Python 3.11 x64. OR-Tools contains native solver libraries and generated protobuf modules, so the project includes a custom PyInstaller hook in `hooks/hook-ortools.py`, a defensive `FactoryScheduler.spec`, and a build-time smoke test in `scripts/check_ortools.py`.
+
+Local build:
+
+```bash
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+python scripts/check_ortools.py
+pyinstaller FactoryScheduler.spec --clean --noconfirm
+```
+
+On GitHub, open **Actions → Build Windows desktop app → Run workflow**. The workflow installs dependencies, verifies that CP-SAT is actually used, and uploads `TarkettFlowScheduler-Windows-CP-SAT`.
+
+If local `pip install ortools` fails, do not build with Python 3.13. Use Python 3.11 x64 or the included GitHub Actions workflow.
