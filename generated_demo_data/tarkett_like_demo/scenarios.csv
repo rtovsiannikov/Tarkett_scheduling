@@ -1,0 +1,4 @@
+scenario_name,description,event_start,replan_time
+baseline_no_disruption,Baseline weekly plan,,
+press_downtime_3h,Press downtime for rescheduling demo,2026-05-27 10:00:00,2026-05-27 10:00:00
+lack_oee_loss,Lack line disruption demo,2026-05-28 08:00:00,2026-05-28 08:00:00

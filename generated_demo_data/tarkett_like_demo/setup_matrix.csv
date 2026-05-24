@@ -1,0 +1,81 @@
+work_center_id,from_product_family,to_product_family,setup_minutes,setup_reason
+PREP,OAK_PURE,OAK_PURE,0,same family
+PREP,OAK_PURE,OAK_SHADE,12,generic family change
+PREP,OAK_PURE,SPORT_OAK,12,generic family change
+PREP,OAK_PURE,TRES,12,generic family change
+PREP,OAK_SHADE,OAK_PURE,12,generic family change
+PREP,OAK_SHADE,OAK_SHADE,0,same family
+PREP,OAK_SHADE,SPORT_OAK,12,generic family change
+PREP,OAK_SHADE,TRES,12,generic family change
+PREP,SPORT_OAK,OAK_PURE,12,generic family change
+PREP,SPORT_OAK,OAK_SHADE,12,generic family change
+PREP,SPORT_OAK,SPORT_OAK,0,same family
+PREP,SPORT_OAK,TRES,12,generic family change
+PREP,TRES,OAK_PURE,12,generic family change
+PREP,TRES,OAK_SHADE,12,generic family change
+PREP,TRES,SPORT_OAK,12,generic family change
+PREP,TRES,TRES,0,same family
+PRESS,OAK_PURE,OAK_PURE,0,same family
+PRESS,OAK_PURE,OAK_SHADE,24,press tooling / layer recipe change
+PRESS,OAK_PURE,SPORT_OAK,24,press tooling / layer recipe change
+PRESS,OAK_PURE,TRES,24,press tooling / layer recipe change
+PRESS,OAK_SHADE,OAK_PURE,24,press tooling / layer recipe change
+PRESS,OAK_SHADE,OAK_SHADE,0,same family
+PRESS,OAK_SHADE,SPORT_OAK,24,press tooling / layer recipe change
+PRESS,OAK_SHADE,TRES,24,press tooling / layer recipe change
+PRESS,SPORT_OAK,OAK_PURE,24,press tooling / layer recipe change
+PRESS,SPORT_OAK,OAK_SHADE,24,press tooling / layer recipe change
+PRESS,SPORT_OAK,SPORT_OAK,0,same family
+PRESS,SPORT_OAK,TRES,24,press tooling / layer recipe change
+PRESS,TRES,OAK_PURE,24,press tooling / layer recipe change
+PRESS,TRES,OAK_SHADE,24,press tooling / layer recipe change
+PRESS,TRES,SPORT_OAK,24,press tooling / layer recipe change
+PRESS,TRES,TRES,0,same family
+LACK,OAK_PURE,OAK_PURE,0,same family
+LACK,OAK_PURE,OAK_SHADE,30,lacquer / surface change
+LACK,OAK_PURE,SPORT_OAK,30,lacquer / surface change
+LACK,OAK_PURE,TRES,30,lacquer / surface change
+LACK,OAK_SHADE,OAK_PURE,30,lacquer / surface change
+LACK,OAK_SHADE,OAK_SHADE,0,same family
+LACK,OAK_SHADE,SPORT_OAK,30,lacquer / surface change
+LACK,OAK_SHADE,TRES,30,lacquer / surface change
+LACK,SPORT_OAK,OAK_PURE,30,lacquer / surface change
+LACK,SPORT_OAK,OAK_SHADE,30,lacquer / surface change
+LACK,SPORT_OAK,SPORT_OAK,0,same family
+LACK,SPORT_OAK,TRES,30,lacquer / surface change
+LACK,TRES,OAK_PURE,30,lacquer / surface change
+LACK,TRES,OAK_SHADE,30,lacquer / surface change
+LACK,TRES,SPORT_OAK,30,lacquer / surface change
+LACK,TRES,TRES,0,same family
+PROFILING,OAK_PURE,OAK_PURE,0,same family
+PROFILING,OAK_PURE,OAK_SHADE,18,profile / locking system change
+PROFILING,OAK_PURE,SPORT_OAK,18,profile / locking system change
+PROFILING,OAK_PURE,TRES,18,profile / locking system change
+PROFILING,OAK_SHADE,OAK_PURE,18,profile / locking system change
+PROFILING,OAK_SHADE,OAK_SHADE,0,same family
+PROFILING,OAK_SHADE,SPORT_OAK,18,profile / locking system change
+PROFILING,OAK_SHADE,TRES,18,profile / locking system change
+PROFILING,SPORT_OAK,OAK_PURE,18,profile / locking system change
+PROFILING,SPORT_OAK,OAK_SHADE,18,profile / locking system change
+PROFILING,SPORT_OAK,SPORT_OAK,0,same family
+PROFILING,SPORT_OAK,TRES,18,profile / locking system change
+PROFILING,TRES,OAK_PURE,18,profile / locking system change
+PROFILING,TRES,OAK_SHADE,18,profile / locking system change
+PROFILING,TRES,SPORT_OAK,18,profile / locking system change
+PROFILING,TRES,TRES,0,same family
+PACK,OAK_PURE,OAK_PURE,0,same family
+PACK,OAK_PURE,OAK_SHADE,12,generic family change
+PACK,OAK_PURE,SPORT_OAK,12,generic family change
+PACK,OAK_PURE,TRES,12,generic family change
+PACK,OAK_SHADE,OAK_PURE,12,generic family change
+PACK,OAK_SHADE,OAK_SHADE,0,same family
+PACK,OAK_SHADE,SPORT_OAK,12,generic family change
+PACK,OAK_SHADE,TRES,12,generic family change
+PACK,SPORT_OAK,OAK_PURE,12,generic family change
+PACK,SPORT_OAK,OAK_SHADE,12,generic family change
+PACK,SPORT_OAK,SPORT_OAK,0,same family
+PACK,SPORT_OAK,TRES,12,generic family change
+PACK,TRES,OAK_PURE,12,generic family change
+PACK,TRES,OAK_SHADE,12,generic family change
+PACK,TRES,SPORT_OAK,12,generic family change
+PACK,TRES,TRES,0,same family

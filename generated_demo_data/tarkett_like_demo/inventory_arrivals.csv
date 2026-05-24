@@ -1,0 +1,4 @@
+location,item_id,arrival_time,quantity
+RAW_MATERIAL,oak_top_layer,2026-05-27 07:00:00,2500
+RAW_MATERIAL,colored_lacquer,2026-05-26 12:00:00,250
+RAW_MATERIAL,packaging_box,2026-05-28 08:00:00,600

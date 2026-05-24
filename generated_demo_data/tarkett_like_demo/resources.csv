@@ -1,0 +1,10 @@
+resource_id,resource_name,unit
+oak_top_layer,Oak top layer,unit
+pine_middle_layer,Pine middle layer,unit
+bottom_layer,Bottom layer,unit
+mixed_top_layer,Mixed top layer,unit
+matte_lacquer,Matte lacquer,liter
+colored_lacquer,Colored lacquer,liter
+sport_lacquer,Sport lacquer,liter
+standard_lacquer,Standard lacquer,liter
+packaging_box,Packaging boxes,box

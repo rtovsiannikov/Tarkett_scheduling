@@ -1,0 +1,2 @@
+product_id,initial_finished_stock,safety_stock,target_stock,max_stock,forecast_demand_week,replenishment_priority
+TRES_STOCK,650,450,1200,1800,760,2

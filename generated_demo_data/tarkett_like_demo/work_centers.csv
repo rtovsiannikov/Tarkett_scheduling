@@ -1,0 +1,6 @@
+work_center_id,work_center_name,stage_order,is_bottleneck,default_oee,description
+PREP,Layer preparation ML/TL/BL,1,False,0.86,Preparation of middle/top/bottom layers before pressing.
+PRESS,Press bottleneck,2,True,0.78,Main bottleneck; forms multilayer board structure.
+LACK,Lacquering / surface treatment,3,False,0.82,Lacquering or surface treatment line.
+PROFILING,Profiling / locking system,4,False,0.84,"Profiling, side processing, locking system preparation."
+PACK,Packing line,5,False,0.88,Final packing before shipment or finished-goods warehouse.

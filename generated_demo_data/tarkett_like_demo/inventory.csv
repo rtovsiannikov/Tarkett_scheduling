@@ -1,0 +1,12 @@
+location,item_id,item_name,item_type,initial_qty,unit,safety_stock,target_stock,max_stock
+RAW_MATERIAL,oak_top_layer,Oak top layer,RESOURCE,9500,unit,1000,3000,15000
+RAW_MATERIAL,pine_middle_layer,Pine middle layer,RESOURCE,12000,unit,2000,5000,20000
+RAW_MATERIAL,bottom_layer,Bottom layer,RESOURCE,11000,unit,2000,5000,20000
+RAW_MATERIAL,mixed_top_layer,Mixed top layer,RESOURCE,7000,unit,800,2200,12000
+RAW_MATERIAL,matte_lacquer,Matte lacquer,RESOURCE,900,liter,120,400,2000
+RAW_MATERIAL,colored_lacquer,Colored lacquer,RESOURCE,750,liter,100,300,1500
+RAW_MATERIAL,sport_lacquer,Sport lacquer,RESOURCE,550,liter,70,250,1000
+RAW_MATERIAL,standard_lacquer,Standard lacquer,RESOURCE,1000,liter,120,500,2000
+RAW_MATERIAL,packaging_box,Packaging boxes,RESOURCE,2200,box,300,800,5000
+KANBAN,WIP_BOARD,Pressed board WIP,WIP,400,unit,150,600,1300
+FINISHED_GOODS,TRES_STOCK,TRES stock flooring,PRODUCT,650,unit,450,1200,1800
