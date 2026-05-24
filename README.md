@@ -297,3 +297,7 @@ GitHub Actions:
 3. Add strict Kanban capacity constraints directly inside CP-SAT after the MVP is validated.
 4. Add scenario sliders for OEE, yield, Press downtime, extra shift, and raw-material delays.
 5. Add a baseline-vs-rescheduling comparison tab with changed-batch detection.
+
+## Notes for v3 inventory fix
+
+If several inventory events occur at the same timestamp, the system now applies initial stock, planned arrivals and production outputs before consumption events. This removes false negative spikes in the inventory chart, for example when a batch leaves PRESS and enters LACK at the exact same minute. A remaining `below_safety` event is still shown as a real warning, not as a negative inventory error.

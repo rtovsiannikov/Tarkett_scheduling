@@ -1,0 +1,2 @@
+orders_total,batches_total,avg_batches_per_order,customer_orders,stock_orders,otif_rate_all,otif_rate_customer,otif_rate_priority,late_orders,total_tardiness_minutes,missed_quantity_total,average_fill_rate_by_due,makespan_start,makespan_end,makespan_hours,press_utilization_proxy,raw_material_negative_events,kanban_violations,finished_goods_stockout_events
+15,35,2.33,14,1,0.4667,0.4286,1.0,8,8063,4519,0.5112,2026-05-25 06:00:00,2026-05-29 14:08:00,104.13,0.7554,0,0,1

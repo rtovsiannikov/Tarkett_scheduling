@@ -1,0 +1,2 @@
+method,scenario_name,replan_time,bundle_dir,operations,batches,status,objective_value,solve_time_seconds
+greedy fallback,press_downtime_3h,2026-05-27 10:00:00,generated_demo_data/tarkett_like_demo,175,35,GREEDY_FEASIBLE,,0.42215943336486816

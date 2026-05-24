@@ -1085,7 +1085,27 @@ def _inventory_running_balance(events: List[Dict[str, Any]], inventory: pd.DataF
     df = pd.DataFrame(events)
     if df.empty:
         return df
-    df = df.sort_values(["location", "item_id", "event_time", "event_type"]).reset_index(drop=True)
+
+    # Several inventory events can happen at the same timestamp. For example, a
+    # batch may leave PRESS and enter LACK at the exact same minute, and the
+    # initial stock event is often at the same timestamp as the first PREP
+    # consumption event. Alphabetical sorting would process "consumption"
+    # before "initial_stock" / "press_output", creating false negative
+    # spikes on the chart. Production/arrival events must be applied first.
+    event_priority = {
+        "initial_stock": 0,
+        "planned_arrival": 1,
+        "press_output": 2,
+        "stock_production": 2,
+        "replenishment": 2,
+        "consumption": 10,
+        "lack_input": 10,
+        "forecast_demand": 11,
+    }
+    df["event_time"] = pd.to_datetime(df["event_time"])
+    df["event_priority"] = df["event_type"].map(event_priority).fillna(5).astype(int)
+    df = df.sort_values(["location", "item_id", "event_time", "event_priority", "event_type"]).reset_index(drop=True)
+
     policy = inventory.set_index(["location", "item_id"]).to_dict("index") if not inventory.empty else {}
     balances = []
     for (loc, item), group in df.groupby(["location", "item_id"], sort=False):
@@ -1104,7 +1124,11 @@ def _inventory_running_balance(events: List[Dict[str, Any]], inventory: pd.DataF
             out["below_safety"] = running < safety - 1e-6
             out["above_max"] = max_stock > 0 and running > max_stock + 1e-6
             balances.append(out)
-    return pd.DataFrame(balances).sort_values(["event_time", "location", "item_id"]).reset_index(drop=True)
+    return (
+        pd.DataFrame(balances)
+        .sort_values(["event_time", "location", "item_id", "event_priority", "event_type"])
+        .reset_index(drop=True)
+    )
 
 
 def calculate_kpis(

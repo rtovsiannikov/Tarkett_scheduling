@@ -1,0 +1,266 @@
+event_time,location,item_id,event_type,delta_qty,order_id,batch_id,stage_name,details,event_priority,balance_qty,safety_stock,target_stock,max_stock,below_zero,below_safety,above_max
+2026-05-25 06:00:00,FINISHED_GOODS,TRES_STOCK,initial_stock,650.0,,,,initial,0,650.0,450.0,1200.0,1800.0,False,False,False
+2026-05-25 06:00:00,KANBAN,WIP_BOARD,initial_stock,400.0,,,,initial,0,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,bottom_layer,initial_stock,11000.0,,,,initial,0,11000.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,bottom_layer,consumption,-456.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B01,Layer prep,BOM consumption for TRES_STOCK,10,10544.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,colored_lacquer,initial_stock,750.0,,,,initial,0,750.0,100.0,300.0,1500.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,matte_lacquer,initial_stock,900.0,,,,initial,0,900.0,120.0,400.0,2000.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,mixed_top_layer,initial_stock,7000.0,,,,initial,0,7000.0,800.0,2200.0,12000.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,mixed_top_layer,consumption,-456.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B01,Layer prep,BOM consumption for TRES_STOCK,10,6544.0,800.0,2200.0,12000.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,oak_top_layer,initial_stock,9500.0,,,,initial,0,9500.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,packaging_box,initial_stock,2200.0,,,,initial,0,2200.0,300.0,800.0,5000.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,pine_middle_layer,initial_stock,12000.0,,,,initial,0,12000.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,pine_middle_layer,consumption,-456.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B01,Layer prep,BOM consumption for TRES_STOCK,10,11544.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,sport_lacquer,initial_stock,550.0,,,,initial,0,550.0,70.0,250.0,1000.0,False,False,False
+2026-05-25 06:00:00,RAW_MATERIAL,standard_lacquer,initial_stock,1000.0,,,,initial,0,1000.0,120.0,500.0,2000.0,False,False,False
+2026-05-25 06:54:00,RAW_MATERIAL,bottom_layer,consumption,-456.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B02,Layer prep,BOM consumption for TRES_STOCK,10,10088.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 06:54:00,RAW_MATERIAL,mixed_top_layer,consumption,-456.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B02,Layer prep,BOM consumption for TRES_STOCK,10,6088.0,800.0,2200.0,12000.0,False,False,False
+2026-05-25 06:54:00,RAW_MATERIAL,pine_middle_layer,consumption,-456.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B02,Layer prep,BOM consumption for TRES_STOCK,10,11088.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 08:00:00,RAW_MATERIAL,bottom_layer,consumption,-297.0,C002,C002-B01,Layer prep,BOM consumption for SPORT_OAK,10,9791.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 08:00:00,RAW_MATERIAL,oak_top_layer,consumption,-297.0,C002,C002-B01,Layer prep,BOM consumption for SPORT_OAK,10,9203.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 08:00:00,RAW_MATERIAL,pine_middle_layer,consumption,-297.0,C002,C002-B01,Layer prep,BOM consumption for SPORT_OAK,10,10791.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 08:45:00,KANBAN,WIP_BOARD,press_output,437.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B01,Press,pressed board enters Kanban buffer,2,837.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 08:45:00,KANBAN,WIP_BOARD,lack_input,-437.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 08:45:00,RAW_MATERIAL,standard_lacquer,consumption,-36.480000000000004,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B01,Lack,BOM consumption for TRES_STOCK,10,963.52,120.0,500.0,2000.0,False,False,False
+2026-05-25 08:58:00,RAW_MATERIAL,bottom_layer,consumption,-296.0,C002,C002-B02,Layer prep,BOM consumption for SPORT_OAK,10,9495.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 08:58:00,RAW_MATERIAL,oak_top_layer,consumption,-296.0,C002,C002-B02,Layer prep,BOM consumption for SPORT_OAK,10,8907.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 08:58:00,RAW_MATERIAL,pine_middle_layer,consumption,-296.0,C002,C002-B02,Layer prep,BOM consumption for SPORT_OAK,10,10495.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 09:56:00,RAW_MATERIAL,bottom_layer,consumption,-296.0,C002,C002-B03,Layer prep,BOM consumption for SPORT_OAK,10,9199.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 09:56:00,RAW_MATERIAL,oak_top_layer,consumption,-296.0,C002,C002-B03,Layer prep,BOM consumption for SPORT_OAK,10,8611.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 09:56:00,RAW_MATERIAL,pine_middle_layer,consumption,-296.0,C002,C002-B03,Layer prep,BOM consumption for SPORT_OAK,10,10199.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 10:49:00,RAW_MATERIAL,packaging_box,consumption,-45.6,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B01,Pack,BOM consumption for TRES_STOCK,10,2154.4,300.0,800.0,5000.0,False,False,False
+2026-05-25 10:54:00,RAW_MATERIAL,bottom_layer,consumption,-275.0,C010,C010-B01,Layer prep,BOM consumption for SPORT_OAK,10,8924.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 10:54:00,RAW_MATERIAL,oak_top_layer,consumption,-275.0,C010,C010-B01,Layer prep,BOM consumption for SPORT_OAK,10,8336.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 10:54:00,RAW_MATERIAL,pine_middle_layer,consumption,-275.0,C010,C010-B01,Layer prep,BOM consumption for SPORT_OAK,10,9924.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 11:00:00,KANBAN,WIP_BOARD,press_output,267.0,C002,C002-B01,Press,pressed board enters Kanban buffer,2,667.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 11:00:00,KANBAN,WIP_BOARD,lack_input,-267.0,C002,C002-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 11:00:00,RAW_MATERIAL,sport_lacquer,consumption,-23.76,C002,C002-B01,Lack,BOM consumption for SPORT_OAK,10,526.24,70.0,250.0,1000.0,False,False,False
+2026-05-25 11:27:00,FINISHED_GOODS,TRES_STOCK,stock_production,437.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B01,Pack,MTS production enters finished-goods warehouse,2,1087.0,450.0,1200.0,1800.0,False,False,False
+2026-05-25 11:49:00,RAW_MATERIAL,bottom_layer,consumption,-274.0,C010,C010-B02,Layer prep,BOM consumption for SPORT_OAK,10,8650.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 11:49:00,RAW_MATERIAL,oak_top_layer,consumption,-274.0,C010,C010-B02,Layer prep,BOM consumption for SPORT_OAK,10,8062.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 11:49:00,RAW_MATERIAL,pine_middle_layer,consumption,-274.0,C010,C010-B02,Layer prep,BOM consumption for SPORT_OAK,10,9650.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 12:44:00,RAW_MATERIAL,bottom_layer,consumption,-274.0,C010,C010-B03,Layer prep,BOM consumption for SPORT_OAK,10,8376.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 12:44:00,RAW_MATERIAL,oak_top_layer,consumption,-274.0,C010,C010-B03,Layer prep,BOM consumption for SPORT_OAK,10,7788.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 12:44:00,RAW_MATERIAL,pine_middle_layer,consumption,-274.0,C010,C010-B03,Layer prep,BOM consumption for SPORT_OAK,10,9376.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 13:01:00,KANBAN,WIP_BOARD,press_output,266.0,C002,C002-B02,Press,pressed board enters Kanban buffer,2,666.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 13:01:00,KANBAN,WIP_BOARD,lack_input,-266.0,C002,C002-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 13:01:00,RAW_MATERIAL,sport_lacquer,consumption,-23.68,C002,C002-B02,Lack,BOM consumption for SPORT_OAK,10,502.56,70.0,250.0,1000.0,False,False,False
+2026-05-25 13:18:00,RAW_MATERIAL,packaging_box,consumption,-49.49999999999998,C002,C002-B01,Pack,BOM consumption for SPORT_OAK,10,2104.9,300.0,800.0,5000.0,False,False,False
+2026-05-25 14:00:00,RAW_MATERIAL,bottom_layer,consumption,-309.0,C013,C013-B01,Layer prep,BOM consumption for SPORT_OAK,10,8067.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 14:00:00,RAW_MATERIAL,oak_top_layer,consumption,-309.0,C013,C013-B01,Layer prep,BOM consumption for SPORT_OAK,10,7479.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 14:00:00,RAW_MATERIAL,pine_middle_layer,consumption,-309.0,C013,C013-B01,Layer prep,BOM consumption for SPORT_OAK,10,9067.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 15:00:00,RAW_MATERIAL,bottom_layer,consumption,-309.0,C013,C013-B02,Layer prep,BOM consumption for SPORT_OAK,10,7758.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 15:00:00,RAW_MATERIAL,oak_top_layer,consumption,-309.0,C013,C013-B02,Layer prep,BOM consumption for SPORT_OAK,10,7170.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 15:00:00,RAW_MATERIAL,pine_middle_layer,consumption,-309.0,C013,C013-B02,Layer prep,BOM consumption for SPORT_OAK,10,8758.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 15:02:00,KANBAN,WIP_BOARD,press_output,266.0,C002,C002-B03,Press,pressed board enters Kanban buffer,2,666.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 15:02:00,KANBAN,WIP_BOARD,lack_input,-266.0,C002,C002-B03,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 15:02:00,RAW_MATERIAL,sport_lacquer,consumption,-23.68,C002,C002-B03,Lack,BOM consumption for SPORT_OAK,10,478.88,70.0,250.0,1000.0,False,False,False
+2026-05-25 15:19:00,RAW_MATERIAL,packaging_box,consumption,-49.333333333333314,C002,C002-B02,Pack,BOM consumption for SPORT_OAK,10,2055.5667,300.0,800.0,5000.0,False,False,False
+2026-05-25 16:00:00,RAW_MATERIAL,bottom_layer,consumption,-242.0,C001,C001-B01,Layer prep,BOM consumption for SPORT_OAK,10,7516.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 16:00:00,RAW_MATERIAL,oak_top_layer,consumption,-242.0,C001,C001-B01,Layer prep,BOM consumption for SPORT_OAK,10,6928.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 16:00:00,RAW_MATERIAL,pine_middle_layer,consumption,-242.0,C001,C001-B01,Layer prep,BOM consumption for SPORT_OAK,10,8516.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 16:50:00,RAW_MATERIAL,bottom_layer,consumption,-242.0,C001,C001-B02,Layer prep,BOM consumption for SPORT_OAK,10,7274.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 16:50:00,RAW_MATERIAL,oak_top_layer,consumption,-242.0,C001,C001-B02,Layer prep,BOM consumption for SPORT_OAK,10,6686.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 16:50:00,RAW_MATERIAL,pine_middle_layer,consumption,-242.0,C001,C001-B02,Layer prep,BOM consumption for SPORT_OAK,10,8274.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 16:57:00,KANBAN,WIP_BOARD,press_output,247.0,C010,C010-B01,Press,pressed board enters Kanban buffer,2,647.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 16:57:00,KANBAN,WIP_BOARD,lack_input,-247.0,C010,C010-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 16:57:00,RAW_MATERIAL,sport_lacquer,consumption,-22.0,C010,C010-B01,Lack,BOM consumption for SPORT_OAK,10,456.88,70.0,250.0,1000.0,False,False,False
+2026-05-25 17:20:00,RAW_MATERIAL,packaging_box,consumption,-49.333333333333314,C002,C002-B03,Pack,BOM consumption for SPORT_OAK,10,2006.2333,300.0,800.0,5000.0,False,False,False
+2026-05-25 17:40:00,RAW_MATERIAL,bottom_layer,consumption,-360.0,C014,C014-B01,Layer prep,BOM consumption for PURE_EK,10,6914.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 17:40:00,RAW_MATERIAL,oak_top_layer,consumption,-360.0,C014,C014-B01,Layer prep,BOM consumption for PURE_EK,10,6326.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 17:40:00,RAW_MATERIAL,pine_middle_layer,consumption,-360.0,C014,C014-B01,Layer prep,BOM consumption for PURE_EK,10,7914.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 18:32:00,RAW_MATERIAL,bottom_layer,consumption,-359.0,C014,C014-B02,Layer prep,BOM consumption for PURE_EK,10,6555.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 18:32:00,RAW_MATERIAL,oak_top_layer,consumption,-359.0,C014,C014-B02,Layer prep,BOM consumption for PURE_EK,10,5967.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 18:32:00,RAW_MATERIAL,pine_middle_layer,consumption,-359.0,C014,C014-B02,Layer prep,BOM consumption for PURE_EK,10,7555.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 18:52:00,KANBAN,WIP_BOARD,press_output,246.0,C010,C010-B02,Press,pressed board enters Kanban buffer,2,646.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 18:52:00,KANBAN,WIP_BOARD,lack_input,-246.0,C010,C010-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 18:52:00,RAW_MATERIAL,sport_lacquer,consumption,-21.92,C010,C010-B02,Lack,BOM consumption for SPORT_OAK,10,434.96,70.0,250.0,1000.0,False,False,False
+2026-05-25 19:08:00,RAW_MATERIAL,packaging_box,consumption,-45.833333333333314,C010,C010-B01,Pack,BOM consumption for SPORT_OAK,10,1960.4,300.0,800.0,5000.0,False,False,False
+2026-05-25 19:24:00,RAW_MATERIAL,bottom_layer,consumption,-258.0,C009,C009-B01,Layer prep,BOM consumption for SPORT_OAK,10,6297.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 19:24:00,RAW_MATERIAL,oak_top_layer,consumption,-258.0,C009,C009-B01,Layer prep,BOM consumption for SPORT_OAK,10,5709.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 19:24:00,RAW_MATERIAL,pine_middle_layer,consumption,-258.0,C009,C009-B01,Layer prep,BOM consumption for SPORT_OAK,10,7297.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 20:16:00,RAW_MATERIAL,bottom_layer,consumption,-258.0,C009,C009-B02,Layer prep,BOM consumption for SPORT_OAK,10,6039.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 20:16:00,RAW_MATERIAL,oak_top_layer,consumption,-258.0,C009,C009-B02,Layer prep,BOM consumption for SPORT_OAK,10,5451.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 20:16:00,RAW_MATERIAL,pine_middle_layer,consumption,-258.0,C009,C009-B02,Layer prep,BOM consumption for SPORT_OAK,10,7039.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 20:47:00,KANBAN,WIP_BOARD,press_output,246.0,C010,C010-B03,Press,pressed board enters Kanban buffer,2,646.0,150.0,600.0,1300.0,False,False,False
+2026-05-25 21:03:00,RAW_MATERIAL,packaging_box,consumption,-45.66666666666665,C010,C010-B02,Pack,BOM consumption for SPORT_OAK,10,1914.7333,300.0,800.0,5000.0,False,False,False
+2026-05-25 21:08:00,RAW_MATERIAL,bottom_layer,consumption,-307.0,C006,C006-B01,Layer prep,BOM consumption for PURE_EK,10,5732.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-25 21:08:00,RAW_MATERIAL,oak_top_layer,consumption,-307.0,C006,C006-B01,Layer prep,BOM consumption for PURE_EK,10,5144.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-25 21:08:00,RAW_MATERIAL,pine_middle_layer,consumption,-307.0,C006,C006-B01,Layer prep,BOM consumption for PURE_EK,10,6732.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 06:00:00,KANBAN,WIP_BOARD,lack_input,-246.0,C010,C010-B03,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 06:00:00,RAW_MATERIAL,bottom_layer,consumption,-187.0,C007,C007-B01,Layer prep,BOM consumption for SHADE_EK,10,5545.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 06:00:00,RAW_MATERIAL,oak_top_layer,consumption,-187.0,C007,C007-B01,Layer prep,BOM consumption for SHADE_EK,10,4957.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 06:00:00,RAW_MATERIAL,pine_middle_layer,consumption,-187.0,C007,C007-B01,Layer prep,BOM consumption for SHADE_EK,10,6545.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 06:00:00,RAW_MATERIAL,sport_lacquer,consumption,-21.92,C010,C010-B03,Lack,BOM consumption for SPORT_OAK,10,413.04,70.0,250.0,1000.0,False,False,False
+2026-05-26 06:35:00,RAW_MATERIAL,bottom_layer,consumption,-187.0,C007,C007-B02,Layer prep,BOM consumption for SHADE_EK,10,5358.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 06:35:00,RAW_MATERIAL,oak_top_layer,consumption,-187.0,C007,C007-B02,Layer prep,BOM consumption for SHADE_EK,10,4770.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 06:35:00,RAW_MATERIAL,pine_middle_layer,consumption,-187.0,C007,C007-B02,Layer prep,BOM consumption for SHADE_EK,10,6358.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 07:10:00,RAW_MATERIAL,bottom_layer,consumption,-203.0,C003,C003-B01,Layer prep,BOM consumption for SHADE_EK,10,5155.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 07:10:00,RAW_MATERIAL,oak_top_layer,consumption,-203.0,C003,C003-B01,Layer prep,BOM consumption for SHADE_EK,10,4567.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 07:10:00,RAW_MATERIAL,pine_middle_layer,consumption,-203.0,C003,C003-B01,Layer prep,BOM consumption for SHADE_EK,10,6155.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 07:47:00,RAW_MATERIAL,bottom_layer,consumption,-203.0,C003,C003-B02,Layer prep,BOM consumption for SHADE_EK,10,4952.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 07:47:00,RAW_MATERIAL,oak_top_layer,consumption,-203.0,C003,C003-B02,Layer prep,BOM consumption for SHADE_EK,10,4364.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 07:47:00,RAW_MATERIAL,pine_middle_layer,consumption,-203.0,C003,C003-B02,Layer prep,BOM consumption for SHADE_EK,10,5952.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 07:51:00,KANBAN,WIP_BOARD,press_output,172.0,C007,C007-B01,Press,pressed board enters Kanban buffer,2,572.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 07:51:00,KANBAN,WIP_BOARD,lack_input,-172.0,C007,C007-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 07:51:00,RAW_MATERIAL,colored_lacquer,consumption,-14.96,C007,C007-B01,Lack,BOM consumption for SHADE_EK,10,735.04,100.0,300.0,1500.0,False,False,False
+2026-05-26 08:11:00,RAW_MATERIAL,packaging_box,consumption,-45.66666666666665,C010,C010-B03,Pack,BOM consumption for SPORT_OAK,10,1869.0667,300.0,800.0,5000.0,False,False,False
+2026-05-26 08:24:00,RAW_MATERIAL,bottom_layer,consumption,-329.0,C004,C004-B01,Layer prep,BOM consumption for PURE_EK,10,4623.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 08:24:00,RAW_MATERIAL,oak_top_layer,consumption,-329.0,C004,C004-B01,Layer prep,BOM consumption for PURE_EK,10,4035.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 08:24:00,RAW_MATERIAL,pine_middle_layer,consumption,-329.0,C004,C004-B01,Layer prep,BOM consumption for PURE_EK,10,5623.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 09:07:00,KANBAN,WIP_BOARD,press_output,172.0,C007,C007-B02,Press,pressed board enters Kanban buffer,2,572.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 09:07:00,KANBAN,WIP_BOARD,lack_input,-172.0,C007,C007-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 09:07:00,RAW_MATERIAL,colored_lacquer,consumption,-14.96,C007,C007-B02,Lack,BOM consumption for SHADE_EK,10,720.08,100.0,300.0,1500.0,False,False,False
+2026-05-26 09:13:00,RAW_MATERIAL,bottom_layer,consumption,-328.0,C004,C004-B02,Layer prep,BOM consumption for PURE_EK,10,4295.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 09:13:00,RAW_MATERIAL,oak_top_layer,consumption,-328.0,C004,C004-B02,Layer prep,BOM consumption for PURE_EK,10,3707.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 09:13:00,RAW_MATERIAL,pine_middle_layer,consumption,-328.0,C004,C004-B02,Layer prep,BOM consumption for PURE_EK,10,5295.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 09:18:00,RAW_MATERIAL,packaging_box,consumption,-23.375,C007,C007-B01,Pack,BOM consumption for SHADE_EK,10,1845.6917,300.0,800.0,5000.0,False,False,False
+2026-05-26 10:02:00,RAW_MATERIAL,bottom_layer,consumption,-328.0,C004,C004-B03,Layer prep,BOM consumption for PURE_EK,10,3967.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 10:02:00,RAW_MATERIAL,oak_top_layer,consumption,-328.0,C004,C004-B03,Layer prep,BOM consumption for PURE_EK,10,3379.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 10:02:00,RAW_MATERIAL,pine_middle_layer,consumption,-328.0,C004,C004-B03,Layer prep,BOM consumption for PURE_EK,10,4967.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 10:27:00,KANBAN,WIP_BOARD,press_output,186.0,C003,C003-B01,Press,pressed board enters Kanban buffer,2,586.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 10:27:00,KANBAN,WIP_BOARD,lack_input,-186.0,C003,C003-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 10:27:00,RAW_MATERIAL,colored_lacquer,consumption,-16.240000000000002,C003,C003-B01,Lack,BOM consumption for SHADE_EK,10,703.84,100.0,300.0,1500.0,False,False,False
+2026-05-26 10:34:00,RAW_MATERIAL,packaging_box,consumption,-23.375,C007,C007-B02,Pack,BOM consumption for SHADE_EK,10,1822.3167,300.0,800.0,5000.0,False,False,False
+2026-05-26 10:51:00,RAW_MATERIAL,bottom_layer,consumption,-307.0,C006,C006-B02,Layer prep,BOM consumption for PURE_EK,10,3660.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 10:51:00,RAW_MATERIAL,oak_top_layer,consumption,-307.0,C006,C006-B02,Layer prep,BOM consumption for PURE_EK,10,3072.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 10:51:00,RAW_MATERIAL,pine_middle_layer,consumption,-307.0,C006,C006-B02,Layer prep,BOM consumption for PURE_EK,10,4660.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 11:37:00,RAW_MATERIAL,bottom_layer,consumption,-307.0,C006,C006-B03,Layer prep,BOM consumption for PURE_EK,10,3353.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 11:37:00,RAW_MATERIAL,oak_top_layer,consumption,-307.0,C006,C006-B03,Layer prep,BOM consumption for PURE_EK,10,2765.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 11:37:00,RAW_MATERIAL,pine_middle_layer,consumption,-307.0,C006,C006-B03,Layer prep,BOM consumption for PURE_EK,10,4353.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 11:47:00,KANBAN,WIP_BOARD,press_output,186.0,C003,C003-B02,Press,pressed board enters Kanban buffer,2,586.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 11:47:00,KANBAN,WIP_BOARD,lack_input,-186.0,C003,C003-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 11:47:00,RAW_MATERIAL,colored_lacquer,consumption,-16.240000000000002,C003,C003-B02,Lack,BOM consumption for SHADE_EK,10,687.6,100.0,300.0,1500.0,False,False,False
+2026-05-26 11:57:00,RAW_MATERIAL,packaging_box,consumption,-25.375,C003,C003-B01,Pack,BOM consumption for SHADE_EK,10,1796.9417,300.0,800.0,5000.0,False,False,False
+2026-05-26 12:00:00,FINISHED_GOODS,TRES_STOCK,forecast_demand,-180.0,,,,forecast demand consumes finished stock,11,907.0,450.0,1200.0,1800.0,False,False,False
+2026-05-26 12:00:00,RAW_MATERIAL,colored_lacquer,planned_arrival,250.0,,,,arrival,1,937.6,100.0,300.0,1500.0,False,False,False
+2026-05-26 12:23:00,RAW_MATERIAL,bottom_layer,consumption,-348.0,C005,C005-B01,Layer prep,BOM consumption for PURE_EK,10,3005.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 12:23:00,RAW_MATERIAL,oak_top_layer,consumption,-348.0,C005,C005-B01,Layer prep,BOM consumption for PURE_EK,10,2417.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 12:23:00,RAW_MATERIAL,pine_middle_layer,consumption,-348.0,C005,C005-B01,Layer prep,BOM consumption for PURE_EK,10,4005.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 13:14:00,RAW_MATERIAL,bottom_layer,consumption,-299.0,C008,C008-B01,Layer prep,BOM consumption for SHADE_EK,10,2706.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 13:14:00,RAW_MATERIAL,oak_top_layer,consumption,-299.0,C008,C008-B01,Layer prep,BOM consumption for SHADE_EK,10,2118.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 13:14:00,RAW_MATERIAL,pine_middle_layer,consumption,-299.0,C008,C008-B01,Layer prep,BOM consumption for SHADE_EK,10,3706.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 13:17:00,RAW_MATERIAL,packaging_box,consumption,-25.375,C003,C003-B02,Pack,BOM consumption for SHADE_EK,10,1771.5667,300.0,800.0,5000.0,False,False,False
+2026-05-26 13:52:00,KANBAN,WIP_BOARD,press_output,278.0,C013,C013-B01,Press,pressed board enters Kanban buffer,2,678.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 13:52:00,KANBAN,WIP_BOARD,lack_input,-278.0,C013,C013-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 13:52:00,RAW_MATERIAL,sport_lacquer,consumption,-24.72,C013,C013-B01,Lack,BOM consumption for SPORT_OAK,10,388.32,70.0,250.0,1000.0,False,False,False
+2026-05-26 14:04:00,RAW_MATERIAL,bottom_layer,consumption,-299.0,C008,C008-B02,Layer prep,BOM consumption for SHADE_EK,10,2407.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 14:04:00,RAW_MATERIAL,oak_top_layer,consumption,-299.0,C008,C008-B02,Layer prep,BOM consumption for SHADE_EK,10,1819.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 14:04:00,RAW_MATERIAL,pine_middle_layer,consumption,-299.0,C008,C008-B02,Layer prep,BOM consumption for SHADE_EK,10,3407.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 14:54:00,RAW_MATERIAL,bottom_layer,consumption,-298.0,C008,C008-B03,Layer prep,BOM consumption for SHADE_EK,10,2109.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 14:54:00,RAW_MATERIAL,oak_top_layer,consumption,-298.0,C008,C008-B03,Layer prep,BOM consumption for SHADE_EK,10,1521.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 14:54:00,RAW_MATERIAL,pine_middle_layer,consumption,-298.0,C008,C008-B03,Layer prep,BOM consumption for SHADE_EK,10,3109.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 15:44:00,RAW_MATERIAL,bottom_layer,consumption,-232.0,C011,C011-B01,Layer prep,BOM consumption for PURE_EK,10,1877.0,2000.0,5000.0,20000.0,False,True,False
+2026-05-26 15:44:00,RAW_MATERIAL,oak_top_layer,consumption,-232.0,C011,C011-B01,Layer prep,BOM consumption for PURE_EK,10,1289.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 15:44:00,RAW_MATERIAL,pine_middle_layer,consumption,-232.0,C011,C011-B01,Layer prep,BOM consumption for PURE_EK,10,2877.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 15:57:00,KANBAN,WIP_BOARD,press_output,278.0,C013,C013-B02,Press,pressed board enters Kanban buffer,2,678.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 15:57:00,KANBAN,WIP_BOARD,lack_input,-278.0,C013,C013-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 15:57:00,RAW_MATERIAL,sport_lacquer,consumption,-24.72,C013,C013-B02,Lack,BOM consumption for SPORT_OAK,10,363.6,70.0,250.0,1000.0,False,False,False
+2026-05-26 16:14:00,RAW_MATERIAL,packaging_box,consumption,-51.49999999999998,C013,C013-B01,Pack,BOM consumption for SPORT_OAK,10,1720.0667,300.0,800.0,5000.0,False,False,False
+2026-05-26 16:21:00,RAW_MATERIAL,bottom_layer,consumption,-231.0,C011,C011-B02,Layer prep,BOM consumption for PURE_EK,10,1646.0,2000.0,5000.0,20000.0,False,True,False
+2026-05-26 16:21:00,RAW_MATERIAL,oak_top_layer,consumption,-231.0,C011,C011-B02,Layer prep,BOM consumption for PURE_EK,10,1058.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-26 16:21:00,RAW_MATERIAL,pine_middle_layer,consumption,-231.0,C011,C011-B02,Layer prep,BOM consumption for PURE_EK,10,2646.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 16:58:00,RAW_MATERIAL,bottom_layer,consumption,-340.0,C012,C012-B01,Layer prep,BOM consumption for PURE_EK,10,1306.0,2000.0,5000.0,20000.0,False,True,False
+2026-05-26 16:58:00,RAW_MATERIAL,oak_top_layer,consumption,-340.0,C012,C012-B01,Layer prep,BOM consumption for PURE_EK,10,718.0,1000.0,3000.0,15000.0,False,True,False
+2026-05-26 16:58:00,RAW_MATERIAL,pine_middle_layer,consumption,-340.0,C012,C012-B01,Layer prep,BOM consumption for PURE_EK,10,2306.0,2000.0,5000.0,20000.0,False,False,False
+2026-05-26 17:42:00,KANBAN,WIP_BOARD,press_output,217.0,C001,C001-B01,Press,pressed board enters Kanban buffer,2,617.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 17:42:00,KANBAN,WIP_BOARD,lack_input,-217.0,C001,C001-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 17:42:00,RAW_MATERIAL,sport_lacquer,consumption,-19.36,C001,C001-B01,Lack,BOM consumption for SPORT_OAK,10,344.24,70.0,250.0,1000.0,False,False,False
+2026-05-26 17:48:00,RAW_MATERIAL,bottom_layer,consumption,-340.0,C012,C012-B02,Layer prep,BOM consumption for PURE_EK,10,966.0,2000.0,5000.0,20000.0,False,True,False
+2026-05-26 17:48:00,RAW_MATERIAL,oak_top_layer,consumption,-340.0,C012,C012-B02,Layer prep,BOM consumption for PURE_EK,10,378.0,1000.0,3000.0,15000.0,False,True,False
+2026-05-26 17:48:00,RAW_MATERIAL,pine_middle_layer,consumption,-340.0,C012,C012-B02,Layer prep,BOM consumption for PURE_EK,10,1966.0,2000.0,5000.0,20000.0,False,True,False
+2026-05-26 18:19:00,RAW_MATERIAL,packaging_box,consumption,-51.49999999999998,C013,C013-B02,Pack,BOM consumption for SPORT_OAK,10,1668.5667,300.0,800.0,5000.0,False,False,False
+2026-05-26 18:38:00,RAW_MATERIAL,bottom_layer,consumption,-455.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B03,Layer prep,BOM consumption for TRES_STOCK,10,511.0,2000.0,5000.0,20000.0,False,True,False
+2026-05-26 18:38:00,RAW_MATERIAL,mixed_top_layer,consumption,-455.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B03,Layer prep,BOM consumption for TRES_STOCK,10,5633.0,800.0,2200.0,12000.0,False,False,False
+2026-05-26 18:38:00,RAW_MATERIAL,pine_middle_layer,consumption,-455.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B03,Layer prep,BOM consumption for TRES_STOCK,10,1511.0,2000.0,5000.0,20000.0,False,True,False
+2026-05-26 19:27:00,KANBAN,WIP_BOARD,press_output,217.0,C001,C001-B02,Press,pressed board enters Kanban buffer,2,617.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 19:27:00,KANBAN,WIP_BOARD,lack_input,-217.0,C001,C001-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-26 19:27:00,RAW_MATERIAL,sport_lacquer,consumption,-19.36,C001,C001-B02,Lack,BOM consumption for SPORT_OAK,10,324.88,70.0,250.0,1000.0,False,False,False
+2026-05-26 19:42:00,RAW_MATERIAL,packaging_box,consumption,-40.333333333333314,C001,C001-B01,Pack,BOM consumption for SPORT_OAK,10,1628.2333,300.0,800.0,5000.0,False,False,False
+2026-05-26 21:16:00,KANBAN,WIP_BOARD,press_output,338.0,C014,C014-B01,Press,pressed board enters Kanban buffer,2,738.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 06:00:00,KANBAN,WIP_BOARD,lack_input,-338.0,C014,C014-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 06:00:00,RAW_MATERIAL,matte_lacquer,consumption,-28.8,C014,C014-B01,Lack,BOM consumption for PURE_EK,10,871.2,120.0,400.0,2000.0,False,False,False
+2026-05-27 06:00:00,RAW_MATERIAL,packaging_box,consumption,-40.333333333333314,C001,C001-B02,Pack,BOM consumption for SPORT_OAK,10,1587.9,300.0,800.0,5000.0,False,False,False
+2026-05-27 07:00:00,RAW_MATERIAL,oak_top_layer,planned_arrival,2500.0,,,,arrival,1,2878.0,1000.0,3000.0,15000.0,False,False,False
+2026-05-27 07:48:00,KANBAN,WIP_BOARD,press_output,337.0,C014,C014-B02,Press,pressed board enters Kanban buffer,2,737.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 07:48:00,KANBAN,WIP_BOARD,lack_input,-337.0,C014,C014-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 07:48:00,RAW_MATERIAL,matte_lacquer,consumption,-28.72,C014,C014-B02,Lack,BOM consumption for PURE_EK,10,842.48,120.0,400.0,2000.0,False,False,False
+2026-05-27 08:02:00,RAW_MATERIAL,packaging_box,consumption,-45.0,C014,C014-B01,Pack,BOM consumption for PURE_EK,10,1542.9,300.0,800.0,5000.0,False,False,False
+2026-05-27 09:29:00,KANBAN,WIP_BOARD,press_output,309.0,C004,C004-B01,Press,pressed board enters Kanban buffer,2,709.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 09:29:00,KANBAN,WIP_BOARD,lack_input,-309.0,C004,C004-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 09:29:00,RAW_MATERIAL,matte_lacquer,consumption,-26.32,C004,C004-B01,Lack,BOM consumption for PURE_EK,10,816.16,120.0,400.0,2000.0,False,False,False
+2026-05-27 09:50:00,RAW_MATERIAL,packaging_box,consumption,-44.875,C014,C014-B02,Pack,BOM consumption for PURE_EK,10,1498.025,300.0,800.0,5000.0,False,False,False
+2026-05-27 11:10:00,KANBAN,WIP_BOARD,press_output,308.0,C004,C004-B02,Press,pressed board enters Kanban buffer,2,708.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 11:10:00,KANBAN,WIP_BOARD,lack_input,-308.0,C004,C004-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 11:10:00,RAW_MATERIAL,matte_lacquer,consumption,-26.240000000000002,C004,C004-B02,Lack,BOM consumption for PURE_EK,10,789.92,120.0,400.0,2000.0,False,False,False
+2026-05-27 11:24:00,RAW_MATERIAL,packaging_box,consumption,-41.125,C004,C004-B01,Pack,BOM consumption for PURE_EK,10,1456.9,300.0,800.0,5000.0,False,False,False
+2026-05-27 12:51:00,KANBAN,WIP_BOARD,press_output,308.0,C004,C004-B03,Press,pressed board enters Kanban buffer,2,708.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 12:51:00,KANBAN,WIP_BOARD,lack_input,-308.0,C004,C004-B03,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 12:51:00,RAW_MATERIAL,matte_lacquer,consumption,-26.240000000000002,C004,C004-B03,Lack,BOM consumption for PURE_EK,10,763.68,120.0,400.0,2000.0,False,False,False
+2026-05-27 13:04:00,RAW_MATERIAL,packaging_box,consumption,-41.0,C004,C004-B02,Pack,BOM consumption for PURE_EK,10,1415.9,300.0,800.0,5000.0,False,False,False
+2026-05-27 14:41:00,KANBAN,WIP_BOARD,press_output,232.0,C009,C009-B01,Press,pressed board enters Kanban buffer,2,632.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 14:41:00,KANBAN,WIP_BOARD,lack_input,-232.0,C009,C009-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 14:41:00,RAW_MATERIAL,sport_lacquer,consumption,-20.64,C009,C009-B01,Lack,BOM consumption for SPORT_OAK,10,304.24,70.0,250.0,1000.0,False,False,False
+2026-05-27 14:45:00,RAW_MATERIAL,packaging_box,consumption,-41.0,C004,C004-B03,Pack,BOM consumption for PURE_EK,10,1374.9,300.0,800.0,5000.0,False,False,False
+2026-05-27 16:00:00,FINISHED_GOODS,TRES_STOCK,forecast_demand,-240.0,,,,forecast demand consumes finished stock,11,667.0,450.0,1200.0,1800.0,False,False,False
+2026-05-27 16:31:00,KANBAN,WIP_BOARD,press_output,232.0,C009,C009-B02,Press,pressed board enters Kanban buffer,2,632.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 16:31:00,KANBAN,WIP_BOARD,lack_input,-232.0,C009,C009-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 16:31:00,RAW_MATERIAL,sport_lacquer,consumption,-20.64,C009,C009-B02,Lack,BOM consumption for SPORT_OAK,10,283.6,70.0,250.0,1000.0,False,False,False
+2026-05-27 16:46:00,RAW_MATERIAL,packaging_box,consumption,-42.999999999999986,C009,C009-B01,Pack,BOM consumption for SPORT_OAK,10,1331.9,300.0,800.0,5000.0,False,False,False
+2026-05-27 18:07:00,KANBAN,WIP_BOARD,press_output,288.0,C006,C006-B01,Press,pressed board enters Kanban buffer,2,688.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 18:07:00,KANBAN,WIP_BOARD,lack_input,-288.0,C006,C006-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 18:07:00,RAW_MATERIAL,matte_lacquer,consumption,-24.560000000000002,C006,C006-B01,Lack,BOM consumption for PURE_EK,10,739.12,120.0,400.0,2000.0,False,False,False
+2026-05-27 18:36:00,RAW_MATERIAL,packaging_box,consumption,-42.999999999999986,C009,C009-B02,Pack,BOM consumption for SPORT_OAK,10,1288.9,300.0,800.0,5000.0,False,False,False
+2026-05-27 19:43:00,KANBAN,WIP_BOARD,press_output,288.0,C006,C006-B02,Press,pressed board enters Kanban buffer,2,688.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 19:43:00,KANBAN,WIP_BOARD,lack_input,-288.0,C006,C006-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-27 19:43:00,RAW_MATERIAL,matte_lacquer,consumption,-24.560000000000002,C006,C006-B02,Lack,BOM consumption for PURE_EK,10,714.56,120.0,400.0,2000.0,False,False,False
+2026-05-27 19:55:00,RAW_MATERIAL,packaging_box,consumption,-38.375,C006,C006-B01,Pack,BOM consumption for PURE_EK,10,1250.525,300.0,800.0,5000.0,False,False,False
+2026-05-27 21:19:00,KANBAN,WIP_BOARD,press_output,288.0,C006,C006-B03,Press,pressed board enters Kanban buffer,2,688.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 06:00:00,KANBAN,WIP_BOARD,lack_input,-288.0,C006,C006-B03,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 06:00:00,RAW_MATERIAL,matte_lacquer,consumption,-24.560000000000002,C006,C006-B03,Lack,BOM consumption for PURE_EK,10,690.0,120.0,400.0,2000.0,False,False,False
+2026-05-28 06:00:00,RAW_MATERIAL,packaging_box,consumption,-38.375,C006,C006-B02,Pack,BOM consumption for PURE_EK,10,1212.15,300.0,800.0,5000.0,False,False,False
+2026-05-28 07:46:00,KANBAN,WIP_BOARD,press_output,327.0,C005,C005-B01,Press,pressed board enters Kanban buffer,2,727.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 07:46:00,KANBAN,WIP_BOARD,lack_input,-327.0,C005,C005-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 07:46:00,RAW_MATERIAL,matte_lacquer,consumption,-27.84,C005,C005-B01,Lack,BOM consumption for PURE_EK,10,662.16,120.0,400.0,2000.0,False,False,False
+2026-05-28 07:48:00,RAW_MATERIAL,packaging_box,consumption,-38.375,C006,C006-B03,Pack,BOM consumption for PURE_EK,10,1173.775,300.0,800.0,5000.0,False,False,False
+2026-05-28 08:00:00,RAW_MATERIAL,packaging_box,planned_arrival,600.0,,,,arrival,1,1773.775,300.0,800.0,5000.0,False,False,False
+2026-05-28 09:30:00,KANBAN,WIP_BOARD,press_output,275.0,C008,C008-B01,Press,pressed board enters Kanban buffer,2,675.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 09:30:00,KANBAN,WIP_BOARD,lack_input,-275.0,C008,C008-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 09:30:00,RAW_MATERIAL,colored_lacquer,consumption,-23.92,C008,C008-B01,Lack,BOM consumption for SHADE_EK,10,913.68,100.0,300.0,1500.0,False,False,False
+2026-05-28 09:45:00,RAW_MATERIAL,packaging_box,consumption,-43.5,C005,C005-B01,Pack,BOM consumption for PURE_EK,10,1730.275,300.0,800.0,5000.0,False,False,False
+2026-05-28 11:14:00,KANBAN,WIP_BOARD,press_output,275.0,C008,C008-B02,Press,pressed board enters Kanban buffer,2,675.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 11:14:00,KANBAN,WIP_BOARD,lack_input,-275.0,C008,C008-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 11:14:00,RAW_MATERIAL,colored_lacquer,consumption,-23.92,C008,C008-B02,Lack,BOM consumption for SHADE_EK,10,889.76,100.0,300.0,1500.0,False,False,False
+2026-05-28 11:28:00,RAW_MATERIAL,packaging_box,consumption,-37.375,C008,C008-B01,Pack,BOM consumption for SHADE_EK,10,1692.9,300.0,800.0,5000.0,False,False,False
+2026-05-28 12:58:00,KANBAN,WIP_BOARD,press_output,274.0,C008,C008-B03,Press,pressed board enters Kanban buffer,2,674.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 12:58:00,KANBAN,WIP_BOARD,lack_input,-274.0,C008,C008-B03,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 12:58:00,RAW_MATERIAL,colored_lacquer,consumption,-23.84,C008,C008-B03,Lack,BOM consumption for SHADE_EK,10,865.92,100.0,300.0,1500.0,False,False,False
+2026-05-28 13:12:00,RAW_MATERIAL,packaging_box,consumption,-37.375,C008,C008-B02,Pack,BOM consumption for SHADE_EK,10,1655.525,300.0,800.0,5000.0,False,False,False
+2026-05-28 14:17:00,KANBAN,WIP_BOARD,press_output,218.0,C011,C011-B01,Press,pressed board enters Kanban buffer,2,618.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 14:17:00,KANBAN,WIP_BOARD,lack_input,-218.0,C011,C011-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 14:17:00,RAW_MATERIAL,matte_lacquer,consumption,-18.56,C011,C011-B01,Lack,BOM consumption for PURE_EK,10,643.6,120.0,400.0,2000.0,False,False,False
+2026-05-28 14:55:00,RAW_MATERIAL,packaging_box,consumption,-37.25,C008,C008-B03,Pack,BOM consumption for SHADE_EK,10,1618.275,300.0,800.0,5000.0,False,False,False
+2026-05-28 15:36:00,KANBAN,WIP_BOARD,press_output,217.0,C011,C011-B02,Press,pressed board enters Kanban buffer,2,617.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 15:36:00,KANBAN,WIP_BOARD,lack_input,-217.0,C011,C011-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 15:36:00,RAW_MATERIAL,matte_lacquer,consumption,-18.48,C011,C011-B02,Lack,BOM consumption for PURE_EK,10,625.12,120.0,400.0,2000.0,False,False,False
+2026-05-28 15:46:00,RAW_MATERIAL,packaging_box,consumption,-29.0,C011,C011-B01,Pack,BOM consumption for PURE_EK,10,1589.275,300.0,800.0,5000.0,False,False,False
+2026-05-28 17:05:00,RAW_MATERIAL,packaging_box,consumption,-28.875,C011,C011-B02,Pack,BOM consumption for PURE_EK,10,1560.4,300.0,800.0,5000.0,False,False,False
+2026-05-28 17:20:00,KANBAN,WIP_BOARD,press_output,319.0,C012,C012-B01,Press,pressed board enters Kanban buffer,2,719.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 17:20:00,KANBAN,WIP_BOARD,lack_input,-319.0,C012,C012-B01,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 17:20:00,RAW_MATERIAL,matte_lacquer,consumption,-27.2,C012,C012-B01,Lack,BOM consumption for PURE_EK,10,597.92,120.0,400.0,2000.0,False,False,False
+2026-05-28 19:04:00,KANBAN,WIP_BOARD,press_output,319.0,C012,C012-B02,Press,pressed board enters Kanban buffer,2,719.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 19:04:00,KANBAN,WIP_BOARD,lack_input,-319.0,C012,C012-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 19:04:00,RAW_MATERIAL,matte_lacquer,consumption,-27.2,C012,C012-B02,Lack,BOM consumption for PURE_EK,10,570.72,120.0,400.0,2000.0,False,False,False
+2026-05-28 19:17:00,RAW_MATERIAL,packaging_box,consumption,-42.5,C012,C012-B01,Pack,BOM consumption for PURE_EK,10,1517.9,300.0,800.0,5000.0,False,False,False
+2026-05-28 20:55:00,KANBAN,WIP_BOARD,press_output,437.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B02,Press,pressed board enters Kanban buffer,2,837.0,150.0,600.0,1300.0,False,False,False
+2026-05-28 21:01:00,RAW_MATERIAL,packaging_box,consumption,-42.5,C012,C012-B02,Pack,BOM consumption for PURE_EK,10,1475.4,300.0,800.0,5000.0,False,False,False
+2026-05-29 06:00:00,KANBAN,WIP_BOARD,lack_input,-437.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B02,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-29 06:00:00,RAW_MATERIAL,standard_lacquer,consumption,-36.480000000000004,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B02,Lack,BOM consumption for TRES_STOCK,10,927.04,120.0,500.0,2000.0,False,False,False
+2026-05-29 07:51:00,KANBAN,WIP_BOARD,press_output,436.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B03,Press,pressed board enters Kanban buffer,2,836.0,150.0,600.0,1300.0,False,False,False
+2026-05-29 07:51:00,KANBAN,WIP_BOARD,lack_input,-436.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B03,Lack,board leaves Kanban for Lack,10,400.0,150.0,600.0,1300.0,False,False,False
+2026-05-29 07:51:00,RAW_MATERIAL,standard_lacquer,consumption,-36.4,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B03,Lack,BOM consumption for TRES_STOCK,10,890.64,120.0,500.0,2000.0,False,False,False
+2026-05-29 08:04:00,RAW_MATERIAL,packaging_box,consumption,-45.6,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B02,Pack,BOM consumption for TRES_STOCK,10,1429.8,300.0,800.0,5000.0,False,False,False
+2026-05-29 08:42:00,FINISHED_GOODS,TRES_STOCK,stock_production,437.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B02,Pack,MTS production enters finished-goods warehouse,2,1104.0,450.0,1200.0,1800.0,False,False,False
+2026-05-29 09:55:00,RAW_MATERIAL,packaging_box,consumption,-45.5,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B03,Pack,BOM consumption for TRES_STOCK,10,1384.3,300.0,800.0,5000.0,False,False,False
+2026-05-29 10:00:00,FINISHED_GOODS,TRES_STOCK,forecast_demand,-340.0,,,,forecast demand consumes finished stock,11,764.0,450.0,1200.0,1800.0,False,False,False
+2026-05-29 10:33:00,FINISHED_GOODS,TRES_STOCK,stock_production,436.0,STOCK_TRES_STOCK,STOCK_TRES_STOCK-B03,Pack,MTS production enters finished-goods warehouse,2,1200.0,450.0,1200.0,1800.0,False,False,False

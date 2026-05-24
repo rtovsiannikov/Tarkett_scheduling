@@ -1,0 +1,6 @@
+priority,area,issue,recommendation,evidence
+MEDIUM,OTIF / customer orders,8 normal customer order(s) miss due date.,Check whether MTS replenishment can be moved later or split after customer-critical orders.,"C013, C001, C014, C004, C009"
+MEDIUM,Batch split / partial fill,1 order(s) are partially filled by due date.,Use the Batch split tab to see which lots reached PACK before the deadline; consider moving only the missing batches earlier instead of replanning the whole order.,"order_id  completed_by_due  quantity  batches_completed_by_due  batches_total
+    C008               550       824                         2              3"
+MEDIUM,Press setup losses,Setup share on Press is high for the current sequence.,Group similar product families near the Press bottleneck to reduce tooling/layer-recipe changes.,"Press setup=968 min, total Press time=3626 min"
+MEDIUM,Finished goods warehouse,Finished-goods stock falls below safety stock.,"Increase or advance MTS replenishment order, unless it conflicts with priority customer orders.",TRES_STOCK
