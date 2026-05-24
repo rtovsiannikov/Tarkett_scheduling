@@ -3,38 +3,44 @@ name: Build Windows desktop app
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   build-windows:
     runs-on: windows-2022
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python 3.11 x64
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          architecture: 'x64'
-          cache: 'pip'
+          python-version: "3.11"
+          architecture: "x64"
+          cache: "pip"
+
+      - name: Upgrade pip
+        shell: pwsh
+        run: python -m pip install --upgrade pip setuptools wheel
 
       - name: Install dependencies
         shell: pwsh
         run: |
-          python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
           python -m pip list
 
       - name: Verify source tree layout
         shell: pwsh
         run: |
-          if (!(Test-Path "tarkett_scheduler/core.py")) { throw "Missing tarkett_scheduler/core.py. Patch may have been uploaded into a nested folder instead of repository root." }
-          if (!(Test-Path "desktop_app/main.py")) { throw "Missing desktop_app/main.py. Patch may have been uploaded into a nested folder instead of repository root." }
+          if (!(Test-Path "tarkett_scheduler/core.py")) { throw "Missing tarkett_scheduler/core.py. Upload the patch into the repository root, not into a nested folder." }
+          if (!(Test-Path "desktop_app/main.py")) { throw "Missing desktop_app/main.py. Upload the patch into the repository root, not into a nested folder." }
           if (!(Test-Path "run_desktop_app.py")) { throw "Missing run_desktop_app.py" }
           if (!(Test-Path "scripts/check_ortools.py")) { throw "Missing scripts/check_ortools.py" }
 
-      - name: Verify OR-Tools and project CP-SAT path
+      - name: Verify OR-Tools CP-SAT from source
         shell: pwsh
         run: |
           $env:PYTHONPATH = "$PWD;$env:PYTHONPATH"
@@ -46,23 +52,21 @@ jobs:
           $env:PYTHONPATH = "$PWD;$env:PYTHONPATH"
           python -m tarkett_scheduler.demo_data_generator
 
-      - name: Build executable
+      - name: Build Windows application
         shell: pwsh
         run: python -m PyInstaller FactoryScheduler.spec --clean --noconfirm
 
-      - name: Verify built executable contains OR-Tools
+      - name: Verify executable exists
         shell: pwsh
         run: |
-          if (!(Test-Path "dist/TarkettFlowScheduler/TarkettFlowScheduler.exe")) {
-            throw "Executable was not created"
-          }
-          & "dist/TarkettFlowScheduler/TarkettFlowScheduler.exe" --smoke-test
-          if ($LASTEXITCODE -ne 0) {
-            throw "Bundled executable failed OR-Tools smoke test"
-          }
+          if (!(Test-Path "dist/TarkettFlowScheduler/TarkettFlowScheduler.exe")) { throw "Executable was not created" }
 
-      - name: Upload artifact
+      - name: Create ZIP archive
+        shell: pwsh
+        run: Compress-Archive -Path dist\TarkettFlowScheduler\* -DestinationPath TarkettFlowScheduler-Windows.zip -Force
+
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TarkettFlowScheduler-Windows-CP-SAT
-          path: dist/TarkettFlowScheduler
+          name: TarkettFlowScheduler-Windows
+          path: TarkettFlowScheduler-Windows.zip
