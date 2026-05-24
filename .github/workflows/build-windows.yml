@@ -1,1 +1,35 @@
+name: Build Windows desktop app
 
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Generate demo data
+        run: python -m tarkett_scheduler.demo_data_generator
+
+      - name: Build executable
+        run: pyinstaller FactoryScheduler.spec --clean --noconfirm
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TarkettFlowScheduler-Windows
+          path: dist/TarkettFlowScheduler
