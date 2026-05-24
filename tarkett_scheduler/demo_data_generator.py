@@ -96,6 +96,9 @@ def _build_products() -> pd.DataFrame:
                 "profile_type": "standard_click",
                 "nominal_yield": 0.94,
                 "pack_units_per_box": 8,
+                "preferred_batch_size": 280,
+                "max_batch_size": 360,
+                "batching_policy": "split_by_max_batch_size",
             },
             {
                 "product_id": "SHADE_EK",
@@ -107,6 +110,9 @@ def _build_products() -> pd.DataFrame:
                 "profile_type": "standard_click",
                 "nominal_yield": 0.92,
                 "pack_units_per_box": 8,
+                "preferred_batch_size": 260,
+                "max_batch_size": 340,
+                "batching_policy": "split_by_max_batch_size",
             },
             {
                 "product_id": "SPORT_OAK",
@@ -118,6 +124,9 @@ def _build_products() -> pd.DataFrame:
                 "profile_type": "reinforced_profile",
                 "nominal_yield": 0.90,
                 "pack_units_per_box": 6,
+                "preferred_batch_size": 220,
+                "max_batch_size": 300,
+                "batching_policy": "split_by_max_batch_size",
             },
             {
                 "product_id": "TRES_STOCK",
@@ -129,6 +138,9 @@ def _build_products() -> pd.DataFrame:
                 "profile_type": "standard_click",
                 "nominal_yield": 0.96,
                 "pack_units_per_box": 10,
+                "preferred_batch_size": 350,
+                "max_batch_size": 500,
+                "batching_policy": "split_by_max_batch_size",
             },
         ]
     )
@@ -314,6 +326,9 @@ def _build_orders(products: pd.DataFrame, config: DemoConfig) -> pd.DataFrame:
                 "customer": rng.choice(["Retailer A", "Builder B", "Distributor C", "Project D"]),
                 "source": "customer",
                 "notes": "prio" if is_priority else "",
+                "preferred_batch_size": int(product.get("preferred_batch_size", 280)),
+                "max_batch_size": int(product.get("max_batch_size", 360)),
+                "batching_policy": "split_by_max_batch_size",
             }
         )
     return pd.DataFrame(rows).sort_values(["due_date", "priority"], ascending=[True, False]).reset_index(drop=True)

@@ -127,8 +127,17 @@ def normalize_orders(orders: pd.DataFrame) -> pd.DataFrame:
     orders = _ensure_datetime(orders, ["release_time", "due_date"])
     if "source" not in orders.columns:
         orders["source"] = "manual"
+    orders["source"] = orders["source"].fillna("manual")
     if "notes" not in orders.columns:
         orders["notes"] = ""
+    orders["notes"] = orders["notes"].fillna("")
+    if "preferred_batch_size" not in orders.columns:
+        orders["preferred_batch_size"] = pd.NA
+    if "max_batch_size" not in orders.columns:
+        orders["max_batch_size"] = pd.NA
+    if "batching_policy" not in orders.columns:
+        orders["batching_policy"] = "split_by_max_batch_size"
+    orders["batching_policy"] = orders["batching_policy"].fillna("split_by_max_batch_size")
     return orders
 
 
@@ -329,24 +338,92 @@ def _scenario_replan_time(bundle: DataBundle, scenario_name: str) -> Optional[pd
 # ---------------------------------------------------------------------------
 
 
-def build_operations(bundle: DataBundle) -> pd.DataFrame:
-    """Expand order rows into route operations."""
+
+def build_batches(bundle: DataBundle) -> pd.DataFrame:
+    """Split customer or stock orders into production batches/lots.
+
+    Each order keeps its business identity, but the optimizer schedules smaller
+    transferable lots. This is the key difference from the first clean demo:
+    partial completion is now visible and fill-by-deadline is computed from the
+    batches that reached PACK before the order due date.
+    """
     if bundle.orders.empty:
+        return pd.DataFrame()
+    product_defaults = {}
+    if not bundle.products.empty:
+        product_defaults = bundle.products.set_index("product_id").to_dict("index")
+    rows: List[Dict[str, Any]] = []
+    for _, order in bundle.orders.iterrows():
+        order_id = str(order["order_id"])
+        product_id = str(order["product_id"])
+        product = product_defaults.get(product_id, {})
+        qty = int(order["quantity"])
+        # Order-level override wins; otherwise product-level preferred batch size.
+        preferred = order.get("preferred_batch_size", product.get("preferred_batch_size", 300))
+        if pd.isna(preferred):
+            preferred = product.get("preferred_batch_size", 300)
+        max_batch = order.get("max_batch_size", product.get("max_batch_size", preferred))
+        if pd.isna(max_batch):
+            max_batch = product.get("max_batch_size", preferred)
+        try:
+            preferred = int(float(preferred))
+        except Exception:
+            preferred = int(float(product.get("preferred_batch_size", 300) or 300))
+        try:
+            max_batch = int(float(max_batch))
+        except Exception:
+            max_batch = preferred
+        preferred = max(1, preferred)
+        max_batch = max(preferred, max_batch, 1)
+        # Keep batches reasonably even instead of producing many tiny tails.
+        n_batches = max(1, int(math.ceil(qty / max_batch)))
+        base = qty // n_batches
+        rem = qty % n_batches
+        for i in range(n_batches):
+            bqty = base + (1 if i < rem else 0)
+            rows.append(
+                {
+                    "batch_id": f"{order_id}-B{i + 1:02d}",
+                    "order_id": order_id,
+                    "batch_index": i + 1,
+                    "batches_in_order": n_batches,
+                    "product_id": product_id,
+                    "quantity": bqty,
+                    "order_quantity": qty,
+                    "demand_type": order["demand_type"],
+                    "priority": int(order["priority"]),
+                    "release_time": order["release_time"],
+                    "due_date": order["due_date"],
+                    "source": order.get("source", "manual"),
+                    "notes": order.get("notes", ""),
+                    "batching_policy": order.get("batching_policy", product.get("batching_policy", "split_by_max_batch_size")),
+                    "preferred_batch_size": preferred,
+                    "max_batch_size": max_batch,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def build_operations(bundle: DataBundle) -> pd.DataFrame:
+    """Expand order rows into batch-level route operations."""
+    batches = build_batches(bundle)
+    if batches.empty:
         return pd.DataFrame()
     if bundle.routes.empty:
         raise ValueError("routes.csv is required.")
     product_map = bundle.products.set_index("product_id").to_dict("index") if not bundle.products.empty else {}
     rows: List[Dict[str, Any]] = []
-    for _, order in bundle.orders.iterrows():
-        order_id = str(order["order_id"])
-        product_id = str(order["product_id"])
+    for _, batch in batches.iterrows():
+        order_id = str(batch["order_id"])
+        batch_id = str(batch["batch_id"])
+        product_id = str(batch["product_id"])
         product = product_map.get(product_id, {})
         product_family = str(product.get("product_family", product_id))
         nominal_yield = float(product.get("nominal_yield", 1.0) or 1.0)
         route = bundle.routes[bundle.routes["product_id"].astype(str) == product_id].sort_values("stage_index")
         if route.empty:
             raise ValueError(f"No route found for product_id={product_id}")
-        qty = int(order["quantity"])
+        qty = int(batch["quantity"])
         input_qty = int(math.ceil(qty / max(nominal_yield, 0.01)))
         for _, step in route.iterrows():
             wc = str(step["work_center_id"])
@@ -357,30 +434,34 @@ def build_operations(bundle: DataBundle) -> pd.DataFrame:
             duration = max(1, run_minutes + setup_minutes)
             rows.append(
                 {
-                    "operation_id": f"{order_id}_{int(step['stage_index']):02d}_{wc}",
+                    "operation_id": f"{batch_id}_{int(step['stage_index']):02d}_{wc}",
+                    "batch_id": batch_id,
+                    "batch_index": int(batch["batch_index"]),
+                    "batches_in_order": int(batch["batches_in_order"]),
                     "order_id": order_id,
                     "product_id": product_id,
                     "product_family": product_family,
-                    "demand_type": order["demand_type"],
+                    "demand_type": batch["demand_type"],
                     "stage_index": int(step["stage_index"]),
                     "stage_name": step.get("stage_name", wc),
                     "work_center_id": wc,
                     "machine_id": wc,
                     "quantity": qty,
+                    "order_quantity": int(batch["order_quantity"]),
                     "input_quantity": input_qty,
                     "nominal_yield": nominal_yield,
                     "unit_processing_minutes": unit_minutes,
                     "run_minutes": run_minutes,
                     "setup_minutes": setup_minutes,
                     "duration_minutes": duration,
-                    "release_time": order["release_time"],
-                    "due_date": order["due_date"],
-                    "priority": int(order["priority"]),
-                    "source": order.get("source", "manual"),
+                    "release_time": batch["release_time"],
+                    "due_date": batch["due_date"],
+                    "priority": int(batch["priority"]),
+                    "source": batch.get("source", "manual"),
+                    "batching_policy": batch.get("batching_policy", "split_by_max_batch_size"),
                 }
             )
     return pd.DataFrame(rows)
-
 
 def _work_center_oee(bundle: DataBundle, work_center_id: str) -> float:
     if bundle.work_centers.empty:
@@ -475,6 +556,7 @@ def solve_schedule(
             "replan_time": None if replan_time is None else str(replan_time),
             "bundle_dir": str(bundle.bundle_dir),
             "operations": len(operations),
+            "batches": int(operations["batch_id"].nunique()) if not operations.empty and "batch_id" in operations.columns else 0,
         },
     )
 
@@ -555,8 +637,10 @@ def _solve_cp_sat(
             raise ValueError(f"No feasible window for operation {op_id}; duration={duration} min")
         model.AddExactlyOne(alternatives)
 
-    # Precedence through the common flow line.
-    for order_id, group in operations.groupby("order_id"):
+    # Precedence through the common flow line is enforced per production batch.
+    # Different batches of the same order may overlap on different stages, which
+    # makes partial completion and realistic flow-line pipelining visible.
+    for batch_id, group in operations.groupby("batch_id"):
         ops = group.sort_values("stage_index")["operation_id"].astype(str).tolist()
         for prev, nxt in zip(ops, ops[1:]):
             model.Add(op_start[nxt] >= op_end[prev])
@@ -633,9 +717,13 @@ def _solve_cp_sat(
     return schedule, status, float(solver.ObjectiveValue())
 
 
+
 def _schedule_row_from_operation(op: pd.Series, start_minute: int, end_minute: int, origin: pd.Timestamp) -> Dict[str, Any]:
     return {
         "operation_id": str(op["operation_id"]),
+        "batch_id": str(op.get("batch_id", op["order_id"])),
+        "batch_index": int(op.get("batch_index", 1)),
+        "batches_in_order": int(op.get("batches_in_order", 1)),
         "order_id": str(op["order_id"]),
         "product_id": str(op["product_id"]),
         "product_family": str(op["product_family"]),
@@ -645,6 +733,7 @@ def _schedule_row_from_operation(op: pd.Series, start_minute: int, end_minute: i
         "work_center_id": str(op["work_center_id"]),
         "machine_id": str(op["machine_id"]),
         "quantity": int(op["quantity"]),
+        "order_quantity": int(op.get("order_quantity", op["quantity"])),
         "input_quantity": int(op["input_quantity"]),
         "start_minute": int(start_minute),
         "end_minute": int(end_minute),
@@ -657,6 +746,7 @@ def _schedule_row_from_operation(op: pd.Series, start_minute: int, end_minute: i
         "priority": int(op["priority"]),
         "due_date": pd.to_datetime(op["due_date"]),
         "source": str(op.get("source", "manual")),
+        "batching_policy": str(op.get("batching_policy", "split_by_max_batch_size")),
     }
 
 
@@ -688,6 +778,7 @@ def _solve_greedy(
                 fixed_rows.append(row.to_dict())
 
     order_meta = bundle.orders.set_index("order_id")
+
     def order_sort_key(order_id: str) -> Tuple[int, pd.Timestamp, int, str]:
         row = order_meta.loc[order_id]
         dtype = str(row["demand_type"]).upper()
@@ -696,31 +787,41 @@ def _solve_greedy(
 
     rows: List[Dict[str, Any]] = fixed_rows.copy()
     for order_id in sorted(operations["order_id"].astype(str).unique().tolist(), key=order_sort_key):
-        prev_end = 0
-        order_ops = operations[operations["order_id"].astype(str) == order_id].sort_values("stage_index")
-        for _, op in order_ops.iterrows():
-            op_id = str(op["operation_id"])
-            if op_id in fixed_ops:
-                prev_end = max(prev_end, _to_minute(pd.to_datetime(rows[-1].get("end_time")), origin)) if rows else prev_end
-                continue
-            machine_id = str(op["machine_id"])
-            duration = int(op["duration_minutes"])
-            release_min = _to_minute(op["release_time"], origin)
-            earliest = max(prev_end, release_min)
-            if replan_time is not None:
-                earliest = max(earliest, _to_minute(replan_time, origin))
-            s, e = _find_earliest_slot(windows.get(machine_id, []), reservations.setdefault(machine_id, []), earliest, duration)
-            reservations[machine_id].append((s, e))
-            reservations[machine_id] = _merge_intervals(reservations[machine_id])
-            rows.append(_schedule_row_from_operation(op, s, e, origin))
-            prev_end = e
+        order_ops_all = operations[operations["order_id"].astype(str) == order_id]
+        batch_ids = (
+            order_ops_all[["batch_id", "batch_index"]]
+            .drop_duplicates()
+            .sort_values("batch_index")["batch_id"]
+            .astype(str)
+            .tolist()
+        )
+        for batch_id in batch_ids:
+            prev_end = 0
+            batch_ops = order_ops_all[order_ops_all["batch_id"].astype(str) == batch_id].sort_values("stage_index")
+            for _, op in batch_ops.iterrows():
+                op_id = str(op["operation_id"])
+                if op_id in fixed_ops:
+                    matching = [r for r in fixed_rows if str(r.get("operation_id")) == op_id]
+                    if matching:
+                        prev_end = max(prev_end, _to_minute(pd.to_datetime(matching[0].get("end_time")), origin))
+                    continue
+                machine_id = str(op["machine_id"])
+                duration = int(op["duration_minutes"])
+                release_min = _to_minute(op["release_time"], origin)
+                earliest = max(prev_end, release_min)
+                if replan_time is not None:
+                    earliest = max(earliest, _to_minute(replan_time, origin))
+                s, e = _find_earliest_slot(windows.get(machine_id, []), reservations.setdefault(machine_id, []), earliest, duration)
+                reservations[machine_id].append((s, e))
+                reservations[machine_id] = _merge_intervals(reservations[machine_id])
+                rows.append(_schedule_row_from_operation(op, s, e, origin))
+                prev_end = e
 
     schedule = pd.DataFrame(rows)
     if schedule.empty:
         return schedule, "EMPTY", None
-    schedule = schedule.sort_values(["machine_id", "start_time", "order_id", "stage_index"]).reset_index(drop=True)
+    schedule = schedule.sort_values(["machine_id", "start_time", "order_id", "batch_index", "stage_index"]).reset_index(drop=True)
     return schedule, "GREEDY_FEASIBLE", None
-
 
 def _find_earliest_slot(
     windows: List[Tuple[int, int]],
@@ -764,6 +865,7 @@ def _find_earliest_slot(
 # ---------------------------------------------------------------------------
 
 
+
 def compute_order_summary(bundle: DataBundle, schedule: pd.DataFrame) -> pd.DataFrame:
     if schedule.empty:
         return pd.DataFrame()
@@ -773,12 +875,23 @@ def compute_order_summary(bundle: DataBundle, schedule: pd.DataFrame) -> pd.Data
         ops = schedule[schedule["order_id"].astype(str) == order_id]
         if ops.empty:
             continue
-        completion = pd.to_datetime(ops["end_time"]).max()
         due = pd.to_datetime(order["due_date"])
         quantity = int(order["quantity"])
+        completion = pd.to_datetime(ops["end_time"]).max()
+        pack_ops = ops[ops["work_center_id"].astype(str) == "PACK"].copy()
+        if pack_ops.empty:
+            batch_count = int(ops.get("batch_id", pd.Series(dtype=str)).nunique())
+            completed_by_due = quantity if completion <= due else 0
+            batches_by_due = batch_count if completion <= due else 0
+        else:
+            pack_ops["end_time"] = pd.to_datetime(pack_ops["end_time"])
+            batch_count = int(pack_ops["batch_id"].nunique()) if "batch_id" in pack_ops.columns else len(pack_ops)
+            ontime_pack = pack_ops[pack_ops["end_time"] <= due]
+            completed_by_due = int(ontime_pack["quantity"].sum())
+            batches_by_due = int(ontime_pack["batch_id"].nunique()) if "batch_id" in ontime_pack.columns else len(ontime_pack)
+        fill_rate_by_due = min(1.0, completed_by_due / quantity) if quantity else 0.0
+        in_full = completed_by_due >= quantity
         on_time = completion <= due
-        completed_by_due = quantity if on_time else 0
-        fill_rate_by_due = completed_by_due / quantity if quantity else 0.0
         rows.append(
             {
                 "order_id": order_id,
@@ -791,10 +904,12 @@ def compute_order_summary(bundle: DataBundle, schedule: pd.DataFrame) -> pd.Data
                 "completion_time": completion,
                 "lateness_minutes": max(0, int((completion - due).total_seconds() // 60)),
                 "on_time": bool(on_time),
-                "in_full": True,
-                "otif": bool(on_time),
+                "in_full": bool(in_full),
+                "otif": bool(on_time and in_full),
+                "batches_total": batch_count,
+                "batches_completed_by_due": batches_by_due,
                 "completed_by_due": completed_by_due,
-                "missed_quantity": quantity - completed_by_due,
+                "missed_quantity": max(0, quantity - completed_by_due),
                 "fill_rate_by_due": round(fill_rate_by_due, 4),
                 "source": order.get("source", "manual"),
                 "notes": order.get("notes", ""),
@@ -802,6 +917,37 @@ def compute_order_summary(bundle: DataBundle, schedule: pd.DataFrame) -> pd.Data
         )
     return pd.DataFrame(rows).sort_values(["due_date", "priority"], ascending=[True, False]).reset_index(drop=True)
 
+
+def compute_batch_summary(schedule: pd.DataFrame) -> pd.DataFrame:
+    """Return one row per batch with completion status and route span."""
+    if schedule.empty or "batch_id" not in schedule.columns:
+        return pd.DataFrame()
+    rows: List[Dict[str, Any]] = []
+    for batch_id, group in schedule.groupby("batch_id"):
+        g = group.copy()
+        g["start_time"] = pd.to_datetime(g["start_time"])
+        g["end_time"] = pd.to_datetime(g["end_time"])
+        pack = g[g["work_center_id"].astype(str) == "PACK"]
+        due = pd.to_datetime(g["due_date"].iloc[0])
+        completion = pd.to_datetime(pack["end_time"].max() if not pack.empty else g["end_time"].max())
+        rows.append(
+            {
+                "batch_id": batch_id,
+                "order_id": g["order_id"].iloc[0],
+                "batch_index": int(g["batch_index"].iloc[0]) if "batch_index" in g.columns else 1,
+                "batches_in_order": int(g["batches_in_order"].iloc[0]) if "batches_in_order" in g.columns else 1,
+                "product_id": g["product_id"].iloc[0],
+                "demand_type": g["demand_type"].iloc[0],
+                "quantity": int(g["quantity"].iloc[0]),
+                "route_start": g["start_time"].min(),
+                "completion_time": completion,
+                "due_date": due,
+                "on_time": bool(completion <= due),
+                "lateness_minutes": max(0, int((completion - due).total_seconds() // 60)),
+                "operation_count": int(len(g)),
+            }
+        )
+    return pd.DataFrame(rows).sort_values(["order_id", "batch_index"]).reset_index(drop=True)
 
 def compute_inventory_projection(bundle: DataBundle, schedule: pd.DataFrame) -> pd.DataFrame:
     """Build event-based inventory traces for raw material, Kanban, finished goods."""
@@ -819,6 +965,7 @@ def compute_inventory_projection(bundle: DataBundle, schedule: pd.DataFrame) -> 
                 "event_type": "initial_stock",
                 "delta_qty": float(row.get("initial_qty", 0)),
                 "order_id": "",
+                "batch_id": "",
                 "stage_name": "",
                 "details": "initial",
             }
@@ -834,6 +981,7 @@ def compute_inventory_projection(bundle: DataBundle, schedule: pd.DataFrame) -> 
                 "event_type": "planned_arrival",
                 "delta_qty": float(row["quantity"]),
                 "order_id": "",
+                "batch_id": "",
                 "stage_name": "",
                 "details": "arrival",
             }
@@ -862,6 +1010,7 @@ def compute_inventory_projection(bundle: DataBundle, schedule: pd.DataFrame) -> 
                         "event_type": "consumption",
                         "delta_qty": -float(bom["qty_per_unit"]) * qty,
                         "order_id": op["order_id"],
+                        "batch_id": op.get("batch_id", ""),
                         "stage_name": op["stage_name"],
                         "details": f"BOM consumption for {product_id}",
                     }
@@ -880,6 +1029,7 @@ def compute_inventory_projection(bundle: DataBundle, schedule: pd.DataFrame) -> 
                     "event_type": "press_output",
                     "delta_qty": qty,
                     "order_id": op["order_id"],
+                    "batch_id": op.get("batch_id", ""),
                     "stage_name": op["stage_name"],
                     "details": "pressed board enters Kanban buffer",
                 }
@@ -893,6 +1043,7 @@ def compute_inventory_projection(bundle: DataBundle, schedule: pd.DataFrame) -> 
                     "event_type": "lack_input",
                     "delta_qty": -qty,
                     "order_id": op["order_id"],
+                    "batch_id": op.get("batch_id", ""),
                     "stage_name": op["stage_name"],
                     "details": "board leaves Kanban for Lack",
                 }
@@ -906,6 +1057,7 @@ def compute_inventory_projection(bundle: DataBundle, schedule: pd.DataFrame) -> 
                     "event_type": "stock_production",
                     "delta_qty": qty,
                     "order_id": op["order_id"],
+                    "batch_id": op.get("batch_id", ""),
                     "stage_name": op["stage_name"],
                     "details": "MTS production enters finished-goods warehouse",
                 }
@@ -921,6 +1073,7 @@ def compute_inventory_projection(bundle: DataBundle, schedule: pd.DataFrame) -> 
                 "event_type": "forecast_demand",
                 "delta_qty": -float(row["quantity"]),
                 "order_id": "",
+                "batch_id": "",
                 "stage_name": "",
                 "details": "forecast demand consumes finished stock",
             }
@@ -967,6 +1120,8 @@ def calculate_kpis(
     priority = order_summary[order_summary["demand_type"] == "PRIORITY_CUSTOMER_ORDER"]
     stock = order_summary[order_summary["demand_type"] == "STOCK_ORDER"]
     kpis["orders_total"] = int(len(order_summary))
+    kpis["batches_total"] = int(schedule["batch_id"].nunique()) if not schedule.empty and "batch_id" in schedule.columns else 0
+    kpis["avg_batches_per_order"] = round(float(order_summary["batches_total"].mean()), 2) if "batches_total" in order_summary.columns else None
     kpis["customer_orders"] = int(len(customer))
     kpis["stock_orders"] = int(len(stock))
     kpis["otif_rate_all"] = round(float(order_summary["otif"].mean()), 4)
@@ -1035,6 +1190,16 @@ def generate_recommendations(
                 f"{len(late_customer)} normal customer order(s) miss due date.",
                 "Check whether MTS replenishment can be moved later or split after customer-critical orders.",
                 ", ".join(late_customer["order_id"].astype(str).head(5).tolist()),
+            )
+        partial = order_summary[(order_summary["fill_rate_by_due"] > 0) & (order_summary["fill_rate_by_due"] < 1)]
+        if not partial.empty:
+            sample = partial[["order_id", "completed_by_due", "quantity", "batches_completed_by_due", "batches_total"]].head(5)
+            add(
+                "MEDIUM",
+                "Batch split / partial fill",
+                f"{len(partial)} order(s) are partially filled by due date.",
+                "Use the Batch split tab to see which lots reached PACK before the deadline; consider moving only the missing batches earlier instead of replanning the whole order.",
+                sample.to_string(index=False),
             )
 
     if not schedule.empty:
@@ -1111,6 +1276,7 @@ def save_result(result: SolveResult, output_dir: str | Path) -> Path:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     result.schedule.to_csv(out / "schedule.csv", index=False)
+    compute_batch_summary(result.schedule).to_csv(out / "batch_summary.csv", index=False)
     result.order_summary.to_csv(out / "order_summary.csv", index=False)
     result.inventory_projection.to_csv(out / "inventory_projection.csv", index=False)
     result.recommendations.to_csv(out / "recommendations.csv", index=False)

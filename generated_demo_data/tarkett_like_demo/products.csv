@@ -1,5 +1,5 @@
-product_id,product_name,product_family,planning_strategy,wood_species,surface_treatment,profile_type,nominal_yield,pack_units_per_box
-PURE_EK,PURE EK Oak flooring,OAK_PURE,MTO,oak,matte_lacquer,standard_click,0.94,8
-SHADE_EK,SHADE EK Oak flooring,OAK_SHADE,MTO,oak,colored_lacquer,standard_click,0.92,8
-SPORT_OAK,SPORT OAK flooring,SPORT_OAK,MTO,oak,sport_lacquer,reinforced_profile,0.9,6
-TRES_STOCK,TRES stock flooring,TRES,MTS,mixed,standard_lacquer,standard_click,0.96,10
+product_id,product_name,product_family,planning_strategy,wood_species,surface_treatment,profile_type,nominal_yield,pack_units_per_box,preferred_batch_size,max_batch_size,batching_policy
+PURE_EK,PURE EK Oak flooring,OAK_PURE,MTO,oak,matte_lacquer,standard_click,0.94,8,280,360,split_by_max_batch_size
+SHADE_EK,SHADE EK Oak flooring,OAK_SHADE,MTO,oak,colored_lacquer,standard_click,0.92,8,260,340,split_by_max_batch_size
+SPORT_OAK,SPORT OAK flooring,SPORT_OAK,MTO,oak,sport_lacquer,reinforced_profile,0.9,6,220,300,split_by_max_batch_size
+TRES_STOCK,TRES stock flooring,TRES,MTS,mixed,standard_lacquer,standard_click,0.96,10,350,500,split_by_max_batch_size

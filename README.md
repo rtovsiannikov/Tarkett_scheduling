@@ -14,9 +14,10 @@ The project does **not** require a real weekly ERP export. It includes a built-i
 - finished-goods warehouse;
 - customer MTO orders;
 - priority MTO orders;
-- MTS stock-replenishment orders generated from inventory policy.
+- MTS stock-replenishment orders generated from inventory policy;
+- **batch splitting**: each order is split into production lots/batches and each batch follows the route separately.
 
-The design is intentionally close to the previous `optimal_scheduling` architecture: CSV data bundles, a solver service, KPI tables, Gantt visualization, desktop GUI, and GitHub Actions build workflow.
+The design is intentionally close to the previous `optimal_scheduling` architecture: CSV data bundles, CP-SAT/greedy solver, KPI cards, Gantt visualization, desktop GUI, recommendations, output CSV files, and GitHub Actions / PyInstaller build workflow.
 
 ---
 
@@ -45,19 +46,52 @@ The three demand modes are:
 
 ---
 
+## Batch splitting
+
+A customer order is no longer one large indivisible operation. The solver expands each order into smaller batches:
+
+```text
+Order C002, quantity 799
+    -> C002-B01, quantity 267
+    -> C002-B02, quantity 266
+    -> C002-B03, quantity 266
+```
+
+Each batch receives its own route:
+
+```text
+C002-B01: PREP -> PRESS -> LACK -> PROFILING -> PACK
+C002-B02: PREP -> PRESS -> LACK -> PROFILING -> PACK
+C002-B03: PREP -> PRESS -> LACK -> PROFILING -> PACK
+```
+
+This makes partial fulfillment visible. `fill_rate_by_due` is computed from the batches that reached `PACK` before the order due date.
+
+The batch logic is controlled by these fields:
+
+| Field | Where | Meaning |
+|---|---|---|
+| `preferred_batch_size` | `products.csv` or `orders.csv` | typical target batch size |
+| `max_batch_size` | `products.csv` or `orders.csv` | maximum lot size before splitting |
+| `batching_policy` | `products.csv` or `orders.csv` | currently `split_by_max_batch_size` |
+
+---
+
 ## Repository structure
 
 ```text
 tarkett_scheduling_demo/
 ├── tarkett_scheduler/
-│   ├── core.py                    # CP-SAT / greedy fallback scheduler, KPIs, inventory checks
+│   ├── core.py                    # CP-SAT / greedy fallback scheduler, batches, KPIs, inventory checks
 │   ├── demo_data_generator.py     # built-in Tarkett-like demo data generator
 │   └── __init__.py
 ├── desktop_app/
-│   ├── main.py                    # PySide6 desktop application
+│   ├── main.py                    # richer PySide6 desktop application
 │   ├── dataframe_model.py
-│   ├── gantt_widget.py
+│   ├── gantt_widget.py            # Gantt with order colors, batch labels, setup segments, due dates
 │   ├── inventory_widget.py
+│   ├── kpi_cards.py               # KPI card panel similar to the previous MVP UI
+│   ├── legend_window.py
 │   └── __init__.py
 ├── generated_demo_data/
 │   └── tarkett_like_demo/         # generated CSV bundle
@@ -78,7 +112,7 @@ A generated bundle contains:
 
 | File | Purpose |
 |---|---|
-| `products.csv` | products, product families, MTO/MTS strategy, nominal yield |
+| `products.csv` | products, product families, MTO/MTS strategy, nominal yield, batch-size policy |
 | `work_centers.csv` | PREP, PRESS, LACK, PROFILING, PACK, OEE, bottleneck flag |
 | `routes.csv` | product route through the flow line |
 | `setup_matrix.csv` | family-change setup estimates for each work center |
@@ -86,7 +120,7 @@ A generated bundle contains:
 | `bom.csv` | product resource consumption per stage |
 | `inventory.csv` | raw-material, Kanban, finished-goods initial stock and min/target/max levels |
 | `inventory_arrivals.csv` | planned raw-material arrivals |
-| `orders.csv` | customer and priority customer orders |
+| `orders.csv` | customer and priority customer orders, with optional batch-size overrides |
 | `stock_policy.csv` | finished-goods stock policy used to auto-generate MTS orders |
 | `forecast_demand.csv` | forecast demand consuming finished-goods stock |
 | `shifts.csv` | work windows by line |
@@ -124,19 +158,41 @@ Run the desktop app:
 python run_desktop_app.py
 ```
 
-The app opens as:
-
-```text
-Tarkett-like Flow-Line Scheduling Demo
-```
-
-Recommended demo flow:
+Recommended desktop demo flow:
 
 1. Click **Generate Tarkett-like demo data**.
-2. Click **Solve baseline**.
-3. Inspect **Gantt**, **Order summary**, **Inventory chart**, **Recommendations**, **KPIs**.
+2. Click **Solve baseline plan**.
+3. Inspect **Baseline Plan**, **Batch split**, **Operations table**, **Order summary**, **Inventory chart**, **Recommendations**, **KPI details**.
 4. Click **Run Press downtime rescheduling**.
-5. Compare how OTIF, Kanban, finished-goods stock and lateness change.
+5. Open **Rescheduled Plan** and compare how OTIF, batches, Kanban, finished-goods stock and lateness change.
+
+---
+
+## Desktop UI
+
+The interface is intentionally closer to the earlier `optimal_scheduling` MVP:
+
+- top header with dataset/status chips;
+- left sidebar with data, scenario, solver settings and actions;
+- KPI cards above the tabs;
+- scrollable Gantt charts;
+- separate baseline and rescheduled plan tabs;
+- order/batch legend window;
+- batch split tab;
+- operations table;
+- order summary table;
+- inventory chart and inventory event table;
+- recommendations table;
+- raw data tab;
+- solver log tab.
+
+The Gantt chart now shows:
+
+- stable colors by `order_id`;
+- labels with `order_id` and batch index, for example `C002 B1/3`;
+- dashed due-date markers;
+- a small white setup segment inside operation bars;
+- hatched bars for priority or stock orders.
 
 ---
 
@@ -144,9 +200,9 @@ Recommended demo flow:
 
 When OR-Tools is installed, the scheduler uses CP-SAT:
 
-- one interval per operation;
+- one interval per **batch operation**;
 - no-overlap per work center;
-- precedence through the route;
+- precedence through the route **per batch**;
 - shift-window assignment;
 - downtime as blocked windows;
 - fixed completed operations during rescheduling;
@@ -170,7 +226,7 @@ The project treats warehouses separately from machine scheduling:
 Schedule first -> inventory projection -> diagnostics/recommendations
 ```
 
-This keeps the first MVP robust and easy to explain. Inventory events include:
+This keeps the MVP robust and easy to explain. Inventory events include:
 
 - raw-material initial stock;
 - planned raw-material arrivals;
@@ -193,6 +249,8 @@ The inventory module reports:
 The result contains:
 
 - total orders;
+- total batches;
+- average batches per order;
 - customer orders;
 - stock orders;
 - all-order OTIF;
@@ -236,7 +294,6 @@ GitHub Actions:
 
 1. Add a real product-family setup optimizer around the Press bottleneck.
 2. Add a GUI editor for product families, stock policy, and shift calendars.
-3. Add partial fulfillment by batches/lots instead of one mandatory lot per order.
-4. Add strict Kanban capacity constraints directly inside CP-SAT after the MVP is validated.
-5. Add scenario sliders for OEE, yield, Press downtime, extra shift, and raw-material delays.
-6. Add a baseline-vs-rescheduling comparison tab.
+3. Add strict Kanban capacity constraints directly inside CP-SAT after the MVP is validated.
+4. Add scenario sliders for OEE, yield, Press downtime, extra shift, and raw-material delays.
+5. Add a baseline-vs-rescheduling comparison tab with changed-batch detection.
