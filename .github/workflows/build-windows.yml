@@ -36,11 +36,15 @@ jobs:
 
       - name: Verify OR-Tools and project CP-SAT path
         shell: pwsh
-        run: python scripts/check_ortools.py
+        run: |
+          $env:PYTHONPATH = "$PWD;$env:PYTHONPATH"
+          python scripts/check_ortools.py
 
       - name: Generate demo data
         shell: pwsh
-        run: python -m tarkett_scheduler.demo_data_generator
+        run: |
+          $env:PYTHONPATH = "$PWD;$env:PYTHONPATH"
+          python -m tarkett_scheduler.demo_data_generator
 
       - name: Build executable
         shell: pwsh
