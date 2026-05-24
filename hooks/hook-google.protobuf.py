@@ -1,4 +1,4 @@
-"""Collect protobuf modules used by OR-Tools generated *_pb2 modules."""
+"""PyInstaller hook for protobuf modules used by OR-Tools."""
 
 from PyInstaller.utils.hooks import collect_submodules
 

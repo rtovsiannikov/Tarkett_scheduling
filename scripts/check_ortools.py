@@ -1,9 +1,4 @@
-"""Build-time smoke test for the CP-SAT dependency.
-
-This script is intentionally small and deterministic.  It verifies that OR-Tools
-can be imported, solves a tiny CP-SAT model, then runs the demo scheduler and
-fails if the project silently falls back to the greedy scheduler.
-"""
+"""Build-time and bundled-app smoke test for the CP-SAT dependency."""
 from __future__ import annotations
 
 from importlib.metadata import version
@@ -13,7 +8,8 @@ import sys
 
 from ortools.sat.python import cp_model
 
-from tarkett_scheduler import DemoConfig, generate_tarkett_like_demo_bundle, solve_schedule
+from tarkett_scheduler.demo_data_generator import DemoConfig, generate_tarkett_like_demo_bundle
+from tarkett_scheduler.core import solve_schedule
 
 
 def _solve_tiny_model() -> None:

@@ -1,20 +1,30 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
 from PyInstaller.utils.hooks import (
+    collect_all,
     collect_data_files,
     collect_dynamic_libs,
     collect_submodules,
 )
 
-# OR-Tools uses generated protobuf modules and compiled solver extensions.  The
-# custom hooks in ./hooks are used first; the lists below are a defensive fallback
-# for CI/local builds where hook discovery behaves differently.
-ortools_hidden = collect_submodules("ortools")
+ROOT = Path.cwd()
+
+# OR-Tools contains generated protobuf modules and native compiled extensions.
+# collect_all() is more reliable on Windows than only collect_dynamic_libs().
+ortools_datas, ortools_binaries, ortools_hidden = collect_all("ortools")
 protobuf_hidden = collect_submodules("google.protobuf")
 absl_hidden = collect_submodules("absl")
 matplotlib_hidden = [
     "matplotlib.backends.backend_qtagg",
     "matplotlib.backends.backend_qt5agg",
+]
+project_hidden = [
+    "scripts.check_ortools",
+    "tarkett_scheduler.core",
+    "tarkett_scheduler.demo_data_generator",
+    "desktop_app.main",
 ]
 
 hiddenimports = sorted(set(
@@ -22,6 +32,7 @@ hiddenimports = sorted(set(
     + protobuf_hidden
     + absl_hidden
     + matplotlib_hidden
+    + project_hidden
     + [
         "ortools.sat.python.cp_model",
         "ortools.sat.python.cp_model_helper",
@@ -29,21 +40,20 @@ hiddenimports = sorted(set(
     ]
 ))
 
-binaries = collect_dynamic_libs("ortools")
-datas = (
-    [("generated_demo_data", "generated_demo_data")]
-    + collect_data_files("ortools")
-    + collect_data_files("matplotlib")
-)
+binaries = list(ortools_binaries) + collect_dynamic_libs("ortools")
+
+datas = list(ortools_datas) + collect_data_files("matplotlib")
+if (ROOT / "generated_demo_data").exists():
+    datas.append((str(ROOT / "generated_demo_data"), "generated_demo_data"))
 
 
 a = Analysis(
     ["run_desktop_app.py"],
-    pathex=[],
+    pathex=[str(ROOT)],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    hookspath=["hooks"],
+    hookspath=[str(ROOT / "hooks")],
     hooksconfig={},
     runtime_hooks=[],
     excludes=["tkinter", "pytest", "IPython", "notebook"],
