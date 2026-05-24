@@ -1,6 +1,7 @@
 """PyInstaller hook for Google OR-Tools."""
 
-from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
-datas, binaries, hiddenimports = collect_all("ortools")
-binaries += collect_dynamic_libs("ortools")
+hiddenimports = collect_submodules("ortools")
+binaries = collect_dynamic_libs("ortools")
+datas = collect_data_files("ortools")
