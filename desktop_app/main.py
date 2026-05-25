@@ -7,7 +7,7 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
+from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot, QTimer
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -194,6 +194,13 @@ class MainWindow(QMainWindow):
         self.downtime_events = pd.DataFrame()
         self.solver_thread: Optional[QThread] = None
         self.solver_worker: Optional[SolverWorker] = None
+
+        # Rendering a Matplotlib Gantt is the heaviest UI operation in this app.
+        # Keep a per-result render signature so switching Baseline/Reschedule/
+        # Recommended tabs does not redraw every chart and make Windows mark the
+        # app as "Not responding".
+        self._gantt_render_signature: Dict[str, tuple] = {}
+        self._result_tables_key: Optional[str] = None
 
         self.orders_model = DataFrameModel(editable=True)
         self.products_model = DataFrameModel(editable=True)
@@ -1052,9 +1059,17 @@ class MainWindow(QMainWindow):
     @Slot(str, object)
     def _on_solver_finished(self, job_key: str, result) -> None:
         self.results[job_key] = result
-        self._show_result(job_key)
+        self._gantt_render_signature.pop(job_key, None)
         tab_index = {"baseline": 0, "reschedule": 1, "recommendation": 2}.get(job_key, 0)
+
+        # Avoid recursive tab-change handling while we are installing a freshly
+        # solved result. The old code called _show_result(), then setCurrentIndex(),
+        # which triggered on_main_tab_changed() and redrew all Gantt charts twice.
+        self.tabs.blockSignals(True)
         self.tabs.setCurrentIndex(tab_index)
+        self.tabs.blockSignals(False)
+        self._show_result(job_key, redraw_gantt=True, update_tables=True)
+
         status_text = {
             "baseline": "baseline solved",
             "reschedule": "rescheduling solved",
@@ -1146,19 +1161,42 @@ class MainWindow(QMainWindow):
             recommendation_mode=True,
         )
 
-    def _show_result(self, key: str) -> None:
+    def _show_result(self, key: str, *, redraw_gantt: bool = False, update_tables: bool = True) -> None:
+        """Show one result without redrawing unrelated heavy charts.
+
+        The previous UI refreshed baseline, rescheduling and recommendation
+        Gantt charts every time the user clicked between the first three tabs.
+        Matplotlib drawing is synchronous in the Qt GUI thread, so this made the
+        desktop window freeze on ordinary tab switches. This method now updates
+        KPI/table state for the selected result and only redraws the selected
+        Gantt when it is actually dirty.
+        """
         result = self.results.get(key)
-        if result is None:
-            self._set_result_tables(None)
-            return
         self.active_result_key = key
-        self._set_result_tables(result)
-        self.update_gantt_plots()
-        self.inventory_plot.plot_inventory(result.inventory_projection, f"Inventory projection — {RESULT_TITLES.get(key, key)}")
+        if result is None:
+            if update_tables:
+                self._set_result_tables(None)
+                self._result_tables_key = None
+            self.kpi_panel.set_kpis({})
+            self.kpi_text.setPlainText("")
+            return
+
+        if update_tables and self._result_tables_key != key:
+            self._set_result_tables(result)
+            self._result_tables_key = key
+
         self.kpi_panel.set_kpis(result.kpis)
         self.kpi_text.setPlainText(self._format_kpis(result))
-        for table in [self.batch_table, self.schedule_table, self.order_summary_table, self.inventory_events_table, self.recommendations_table]:
-            table.resizeColumnsToContents()
+
+        if redraw_gantt:
+            self._plot_result_gantt(key, force=True)
+        else:
+            self._plot_result_gantt(key, force=False)
+
+        # Inventory is a shared tab, not a separate per-result widget. Only
+        # redraw it when the user is actually looking at the Inventory chart.
+        if hasattr(self, "tabs") and self.tabs.currentIndex() == 6:
+            self.inventory_plot.plot_inventory(result.inventory_projection, f"Inventory projection — {RESULT_TITLES.get(key, key)}")
 
     def _set_result_tables(self, result) -> None:
         if result is None:
@@ -1173,13 +1211,24 @@ class MainWindow(QMainWindow):
         self.inventory_events_model.set_dataframe(result.inventory_projection)
         self.recommendations_model.set_dataframe(result.recommendations)
 
+    def _result_key_for_tab_index(self, index: int) -> Optional[str]:
+        return {0: "baseline", 1: "reschedule", 2: "recommendation"}.get(index)
+
     def on_main_tab_changed(self, index: int) -> None:
-        if index == 0:
-            self._show_result("baseline")
-        elif index == 1:
-            self._show_result("reschedule")
-        elif index == 2:
-            self._show_result("recommendation")
+        key = self._result_key_for_tab_index(index)
+        if key is not None:
+            # Defer a possible first-time chart render until after Qt has
+            # completed the tab switch. If the chart is already rendered with
+            # the current options, _plot_result_gantt() returns immediately.
+            self.active_result_key = key
+            self._show_result(key, redraw_gantt=False, update_tables=True)
+            QTimer.singleShot(0, lambda k=key: self._plot_result_gantt(k, force=False))
+            return
+
+        if index == 6:  # Inventory chart tab
+            result = self.results.get(self.active_result_key)
+            if result is not None:
+                self.inventory_plot.plot_inventory(result.inventory_projection, f"Inventory projection — {RESULT_TITLES.get(self.active_result_key, self.active_result_key)}")
 
     def _visible_demand_types(self) -> list[str]:
         types = []
@@ -1213,8 +1262,8 @@ class MainWindow(QMainWindow):
             return pd.DataFrame()
         return downtime[downtime["scenario_name"].astype(str) == scenario_name].copy()
 
-    def update_gantt_plots(self) -> None:
-        base_options = {
+    def _current_gantt_options(self) -> dict:
+        return {
             "color_by": self.color_by_combo.currentText() if hasattr(self, "color_by_combo") else "order_id",
             "show_labels": getattr(self, "show_labels_check", None).isChecked() if hasattr(self, "show_labels_check") else True,
             "show_due_dates": getattr(self, "show_due_check", None).isChecked() if hasattr(self, "show_due_check") else True,
@@ -1223,19 +1272,73 @@ class MainWindow(QMainWindow):
             "visible_demand_types": self._visible_demand_types() if hasattr(self, "show_priority_check") else None,
             "machine_filter": self.machine_filter_edit.text() if hasattr(self, "machine_filter_edit") else "",
         }
-        for key, widget in [("baseline", self.baseline_gantt), ("reschedule", self.reschedule_gantt), ("recommendation", self.recommendation_gantt)]:
-            result = self.results.get(key)
-            title = RESULT_TITLES.get(key, key)
-            options = dict(base_options)
-            options["downtime_events"] = self._downtime_events_for_result(result)
-            if result is not None:
-                scenario = result.metadata.get("scenario_name", "")
-                if scenario:
-                    title = f"{title}: {scenario}"
-                widget.plot_schedule(result.schedule, title, **options)
-            else:
-                widget.plot_schedule(pd.DataFrame(), title, **options)
 
+    def _gantt_signature(self, key: str, result, options: dict, downtime_events: pd.DataFrame) -> tuple:
+        scenario = str(result.metadata.get("scenario_name", "") or "") if result is not None else ""
+        schedule = result.schedule if result is not None else pd.DataFrame()
+        if schedule is None or schedule.empty:
+            span = (0, "", "")
+        else:
+            span = (
+                len(schedule),
+                str(schedule.get("start_time", pd.Series(dtype=object)).min()),
+                str(schedule.get("end_time", pd.Series(dtype=object)).max()),
+            )
+        return (
+            key,
+            id(result),
+            scenario,
+            span,
+            options.get("color_by"),
+            bool(options.get("show_labels")),
+            bool(options.get("show_due_dates")),
+            bool(options.get("show_setup")),
+            bool(options.get("show_downtime")),
+            tuple(options.get("visible_demand_types") or []),
+            str(options.get("machine_filter") or ""),
+            len(downtime_events) if downtime_events is not None else 0,
+        )
+
+    def _plot_result_gantt(self, key: str, *, force: bool = False) -> None:
+        widget_map = {
+            "baseline": self.baseline_gantt,
+            "reschedule": self.reschedule_gantt,
+            "recommendation": self.recommendation_gantt,
+        }
+        widget = widget_map.get(key)
+        if widget is None:
+            return
+        result = self.results.get(key)
+        title = RESULT_TITLES.get(key, key)
+        if result is None:
+            signature = (key, None)
+            if force or self._gantt_render_signature.get(key) != signature:
+                widget.plot_schedule(pd.DataFrame(), title)
+                self._gantt_render_signature[key] = signature
+            return
+
+        options = self._current_gantt_options()
+        downtime_events = self._downtime_events_for_result(result)
+        options["downtime_events"] = downtime_events
+        scenario = result.metadata.get("scenario_name", "")
+        if scenario:
+            title = f"{title}: {scenario}"
+
+        signature = self._gantt_signature(key, result, options, downtime_events)
+        if not force and self._gantt_render_signature.get(key) == signature:
+            return
+        widget.plot_schedule(result.schedule, title, **options)
+        self._gantt_render_signature[key] = signature
+
+    def update_gantt_plots(self) -> None:
+        # Graph controls changed. Invalidate all cached drawings, but redraw only
+        # the currently visible Gantt. The other two tabs will be redrawn lazily
+        # when opened.
+        self._gantt_render_signature.clear()
+        key = self._result_key_for_tab_index(self.tabs.currentIndex()) if hasattr(self, "tabs") else self.active_result_key
+        if key is None:
+            key = self.active_result_key
+        self._plot_result_gantt(key, force=True)
     def _format_kpis(self, result) -> str:
         lines = [f"View: {RESULT_TITLES.get(self.active_result_key, self.active_result_key)}", "", "Solver metadata", "---------------"]
         for k, v in result.metadata.items():
