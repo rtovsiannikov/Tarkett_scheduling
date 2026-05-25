@@ -1191,20 +1191,43 @@ class MainWindow(QMainWindow):
             types.append("STOCK_ORDER")
         return types
 
+    def _downtime_events_for_result(self, result) -> pd.DataFrame:
+        """Return only downtime rows that belong to the solved scenario.
+
+        The data editor can contain many what-if downtime events. Baseline solves
+        must not display these disruptions, because baseline_no_disruption is a
+        clean plan. Earlier versions passed the whole downtime_events.csv to every
+        Gantt chart, so the baseline tab looked as if it was solved with downtime
+        even when the solver used scenario_name=baseline_no_disruption.
+        """
+        if result is None:
+            return pd.DataFrame()
+        scenario_name = str(result.metadata.get("scenario_name", "") or "")
+        if not scenario_name or scenario_name == "baseline_no_disruption":
+            return pd.DataFrame()
+        if hasattr(self, "downtime_model"):
+            downtime = self.downtime_model.dataframe()
+        else:
+            downtime = self.downtime_events
+        if downtime is None or downtime.empty or "scenario_name" not in downtime.columns:
+            return pd.DataFrame()
+        return downtime[downtime["scenario_name"].astype(str) == scenario_name].copy()
+
     def update_gantt_plots(self) -> None:
-        options = {
+        base_options = {
             "color_by": self.color_by_combo.currentText() if hasattr(self, "color_by_combo") else "order_id",
             "show_labels": getattr(self, "show_labels_check", None).isChecked() if hasattr(self, "show_labels_check") else True,
             "show_due_dates": getattr(self, "show_due_check", None).isChecked() if hasattr(self, "show_due_check") else True,
             "show_setup": getattr(self, "show_setup_check", None).isChecked() if hasattr(self, "show_setup_check") else True,
             "show_downtime": getattr(self, "show_downtime_check", None).isChecked() if hasattr(self, "show_downtime_check") else True,
-            "downtime_events": self.downtime_model.dataframe() if hasattr(self, "downtime_model") else self.downtime_events,
             "visible_demand_types": self._visible_demand_types() if hasattr(self, "show_priority_check") else None,
             "machine_filter": self.machine_filter_edit.text() if hasattr(self, "machine_filter_edit") else "",
         }
         for key, widget in [("baseline", self.baseline_gantt), ("reschedule", self.reschedule_gantt), ("recommendation", self.recommendation_gantt)]:
             result = self.results.get(key)
             title = RESULT_TITLES.get(key, key)
+            options = dict(base_options)
+            options["downtime_events"] = self._downtime_events_for_result(result)
             if result is not None:
                 scenario = result.metadata.get("scenario_name", "")
                 if scenario:
