@@ -472,9 +472,18 @@ def _work_center_oee(bundle: DataBundle, work_center_id: str) -> float:
     return float(match.iloc[0].get("default_oee", 1.0) or 1.0)
 
 
-def _priority_weight(order: pd.Series) -> int:
+def _priority_weight(order: pd.Series, *, recommendation_mode: bool = False) -> int:
     dtype = str(order.get("demand_type", "CUSTOMER_ORDER")).upper()
     base = int(order.get("priority", 5) or 5)
+    if recommendation_mode:
+        # Guided solve: protect customer OTIF more aggressively and let MTS
+        # replenishment move to slack capacity unless stock policy makes it urgent.
+        if dtype == "PRIORITY_CUSTOMER_ORDER":
+            return 2500 + base * 180
+        if dtype == "CUSTOMER_ORDER":
+            return 900 + base * 70
+        if dtype == "STOCK_ORDER":
+            return 25 + base * 4
     if dtype == "PRIORITY_CUSTOMER_ORDER":
         return 1000 + base * 100
     if dtype == "CUSTOMER_ORDER":
@@ -498,6 +507,10 @@ def solve_schedule(
     time_limit_seconds: int = 20,
     auto_generate_mts_orders: bool = True,
     force_greedy: bool = False,
+    recommendation_mode: bool = False,
+    stability_shift_penalty_per_minute: int = 3,
+    stability_moved_penalty: int = 0,
+    order_sequence_penalty: int = 0,
 ) -> SolveResult:
     """Solve baseline or rescheduling scenario."""
     t0 = time.time()
@@ -515,6 +528,10 @@ def solve_schedule(
                 previous_schedule=previous_schedule,
                 replan_time=replan_time,
                 time_limit_seconds=time_limit_seconds,
+                recommendation_mode=recommendation_mode,
+                stability_shift_penalty_per_minute=stability_shift_penalty_per_minute,
+                stability_moved_penalty=stability_moved_penalty,
+                order_sequence_penalty=order_sequence_penalty,
             )
             method = "CP-SAT"
         except Exception as exc:
@@ -524,6 +541,7 @@ def solve_schedule(
                 scenario_name=scenario_name,
                 previous_schedule=previous_schedule,
                 replan_time=replan_time,
+                recommendation_mode=recommendation_mode,
             )
             method = f"greedy fallback after CP-SAT error: {exc}"
     else:
@@ -533,6 +551,7 @@ def solve_schedule(
             scenario_name=scenario_name,
             previous_schedule=previous_schedule,
             replan_time=replan_time,
+            recommendation_mode=recommendation_mode,
         )
         method = "greedy fallback" if cp_model is None else "greedy forced"
 
@@ -553,6 +572,10 @@ def solve_schedule(
         metadata={
             "method": method,
             "scenario_name": scenario_name,
+            "recommendation_mode": bool(recommendation_mode),
+            "stability_shift_penalty_per_minute": stability_shift_penalty_per_minute,
+            "stability_moved_penalty": stability_moved_penalty,
+            "order_sequence_penalty": order_sequence_penalty,
             "replan_time": None if replan_time is None else str(replan_time),
             "bundle_dir": str(bundle.bundle_dir),
             "operations": len(operations),
@@ -569,6 +592,10 @@ def _solve_cp_sat(
     previous_schedule: Optional[pd.DataFrame],
     replan_time: Optional[pd.Timestamp],
     time_limit_seconds: int,
+    recommendation_mode: bool = False,
+    stability_shift_penalty_per_minute: int = 3,
+    stability_moved_penalty: int = 0,
+    order_sequence_penalty: int = 0,
 ) -> Tuple[pd.DataFrame, str, Optional[float]]:
     assert cp_model is not None
     origin = _time_origin(bundle)
@@ -650,7 +677,7 @@ def _solve_cp_sat(
             model.AddNoOverlap(intervals)
 
     orders = bundle.orders.copy()
-    order_weights = {str(row["order_id"]): _priority_weight(row) for _, row in orders.iterrows()}
+    order_weights = {str(row["order_id"]): _priority_weight(row, recommendation_mode=recommendation_mode) for _, row in orders.iterrows()}
     completion_vars: Dict[str, Any] = {}
     tardiness_terms = []
     missed_otif_terms = []
@@ -671,12 +698,13 @@ def _solve_cp_sat(
         missed = model.NewBoolVar(f"missed_{order_id}")
         model.Add(comp <= due).OnlyEnforceIf(missed.Not())
         model.Add(comp >= due + 1).OnlyEnforceIf(missed)
-        if str(order["demand_type"]).upper() == "PRIORITY_CUSTOMER_ORDER":
-            missed_otif_terms.append(200_000 * missed)
-        elif str(order["demand_type"]).upper() == "CUSTOMER_ORDER":
-            missed_otif_terms.append(80_000 * missed)
+        dtype = str(order["demand_type"]).upper()
+        if dtype == "PRIORITY_CUSTOMER_ORDER":
+            missed_otif_terms.append((350_000 if recommendation_mode else 200_000) * missed)
+        elif dtype == "CUSTOMER_ORDER":
+            missed_otif_terms.append((140_000 if recommendation_mode else 80_000) * missed)
         else:
-            missed_otif_terms.append(5_000 * missed)
+            missed_otif_terms.append((1_500 if recommendation_mode else 5_000) * missed)
 
     stability_terms = []
     if previous_schedule is not None and replan_time is not None and not previous_schedule.empty:
@@ -690,7 +718,27 @@ def _solve_cp_sat(
             prev_start = _to_minute(row["start_time"], origin)
             abs_shift = model.NewIntVar(0, horizon, f"stability_abs_{op_id}")
             model.AddAbsEquality(abs_shift, op_start[op_id] - prev_start)
-            stability_terms.append(3 * abs_shift)
+            if stability_shift_penalty_per_minute > 0:
+                stability_terms.append(int(stability_shift_penalty_per_minute) * abs_shift)
+            if stability_moved_penalty > 0:
+                moved = model.NewBoolVar(f"stability_moved_{op_id}")
+                model.Add(abs_shift == 0).OnlyEnforceIf(moved.Not())
+                model.Add(abs_shift >= 1).OnlyEnforceIf(moved)
+                stability_terms.append(int(stability_moved_penalty) * moved)
+
+        if order_sequence_penalty > 0:
+            press_prev = prev[prev.get("machine_id", "").astype(str) == "PRESS"].copy() if "machine_id" in prev.columns else pd.DataFrame()
+            if not press_prev.empty:
+                press_prev = press_prev.sort_values("start_time")
+                ordered_ops = [op for op in press_prev["operation_id"].astype(str).tolist() if op in op_start and op not in fixed_ops]
+                # Penalize inversions of adjacent PRESS operations from the previous plan.
+                # This is a lightweight "solution nervousness" penalty; it discourages
+                # chaotic reshuffling without over-constraining the reschedule.
+                for left, right in zip(ordered_ops, ordered_ops[1:]):
+                    inverted = model.NewBoolVar(f"press_sequence_inverted_{left}_{right}")
+                    model.Add(op_start[left] <= op_start[right]).OnlyEnforceIf(inverted.Not())
+                    model.Add(op_start[left] >= op_start[right] + 1).OnlyEnforceIf(inverted)
+                    stability_terms.append(int(order_sequence_penalty) * inverted)
 
     makespan = model.NewIntVar(0, horizon, "makespan")
     if completion_vars:
@@ -700,7 +748,8 @@ def _solve_cp_sat(
     model.Minimize(sum(missed_otif_terms) + sum(tardiness_terms) + sum(stability_terms) + makespan)
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = float(time_limit_seconds)
+    if int(time_limit_seconds) > 0:
+        solver.parameters.max_time_in_seconds = float(time_limit_seconds)
     solver.parameters.num_search_workers = 8
     status_code = solver.Solve(model)
     status = solver.StatusName(status_code)
@@ -757,6 +806,7 @@ def _solve_greedy(
     scenario_name: str,
     previous_schedule: Optional[pd.DataFrame],
     replan_time: Optional[pd.Timestamp],
+    recommendation_mode: bool = False,
 ) -> Tuple[pd.DataFrame, str, Optional[float]]:
     origin = _time_origin(bundle)
     windows = _working_windows(bundle, origin, scenario_name)
@@ -779,11 +829,17 @@ def _solve_greedy(
 
     order_meta = bundle.orders.set_index("order_id")
 
-    def order_sort_key(order_id: str) -> Tuple[int, pd.Timestamp, int, str]:
+    def order_sort_key(order_id: str) -> Tuple[int, pd.Timestamp, int, str, str]:
         row = order_meta.loc[order_id]
         dtype = str(row["demand_type"]).upper()
         bucket = 0 if dtype == "PRIORITY_CUSTOMER_ORDER" else 1 if dtype == "CUSTOMER_ORDER" else 2
-        return (bucket, pd.to_datetime(row["due_date"]), -int(row["priority"]), order_id)
+        if recommendation_mode and dtype == "STOCK_ORDER":
+            bucket = 4
+        family = str(bundle.products.set_index("product_id").to_dict("index").get(str(row["product_id"]), {}).get("product_family", row["product_id"])) if not bundle.products.empty else str(row["product_id"])
+        # In guided mode we mildly group by family after customer priority/due date,
+        # reducing needless recipe changes on the Press lane in the fallback path.
+        family_key = family if recommendation_mode else ""
+        return (bucket, pd.to_datetime(row["due_date"]), -int(row["priority"]), family_key, order_id)
 
     rows: List[Dict[str, Any]] = fixed_rows.copy()
     for order_id in sorted(operations["order_id"].astype(str).unique().tolist(), key=order_sort_key):

@@ -2,14 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
-from typing import Optional
+from typing import Dict, Optional
 
 import pandas as pd
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
+    QCheckBox,
+    QComboBox,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -69,7 +72,8 @@ QPushButton {
 QPushButton:disabled { background: #aeb8c6; }
 QPushButton#SecondaryButton { background: #394150; }
 QPushButton#SuccessButton { background: #15803d; }
-QLineEdit, QSpinBox {
+QPushButton#WarningButton { background: #b45309; }
+QLineEdit, QSpinBox, QComboBox {
     padding: 5px;
     border: 1px solid #cfd7e3;
     border-radius: 7px;
@@ -102,30 +106,81 @@ QFrame#HeaderFrame, QFrame#KpiCard {
 """
 
 
+DATA_FILES = {
+    "orders": "orders.csv",
+    "products": "products.csv",
+    "work_centers": "work_centers.csv",
+    "routes": "routes.csv",
+    "shifts": "shifts.csv",
+    "inventory": "inventory.csv",
+    "inventory_arrivals": "inventory_arrivals.csv",
+    "bom": "bom.csv",
+    "stock_policy": "stock_policy.csv",
+    "forecast_demand": "forecast_demand.csv",
+    "scenarios": "scenarios.csv",
+    "downtime_events": "downtime_events.csv",
+    "setup_matrix": "setup_matrix.csv",
+}
+
+
+RESULT_TITLES = {
+    "baseline": "Baseline plan",
+    "reschedule": "Rescheduled plan",
+    "recommendation": "Recommended plan",
+}
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Tarkett-like Factory Scheduling & Rescheduling Demo")
-        self.resize(1520, 930)
+        self.resize(1580, 940)
         self.setStyleSheet(APP_STYLE)
 
         self.bundle_dir: Optional[Path] = None
-        self.baseline_result = None
-        self.reschedule_result = None
+        self.results: Dict[str, object | None] = {"baseline": None, "reschedule": None, "recommendation": None}
+        self.active_result_key = "baseline"
         self.legend_window: Optional[OrderLegendWindow] = None
+        self.downtime_events = pd.DataFrame()
 
-        self.orders_model = DataFrameModel()
+        self.orders_model = DataFrameModel(editable=True)
+        self.products_model = DataFrameModel(editable=True)
+        self.work_centers_model = DataFrameModel(editable=True)
+        self.routes_model = DataFrameModel(editable=True)
+        self.shifts_model = DataFrameModel(editable=True)
+        self.inventory_source_model = DataFrameModel(editable=True)
+        self.inventory_arrivals_model = DataFrameModel(editable=True)
+        self.bom_model = DataFrameModel(editable=True)
+        self.stock_policy_model = DataFrameModel(editable=True)
+        self.forecast_demand_model = DataFrameModel(editable=True)
+        self.scenarios_model = DataFrameModel(editable=True)
+        self.downtime_model = DataFrameModel(editable=True)
+        self.setup_matrix_model = DataFrameModel(editable=True)
+        self.data_models: Dict[str, DataFrameModel] = {
+            "orders": self.orders_model,
+            "products": self.products_model,
+            "work_centers": self.work_centers_model,
+            "routes": self.routes_model,
+            "shifts": self.shifts_model,
+            "inventory": self.inventory_source_model,
+            "inventory_arrivals": self.inventory_arrivals_model,
+            "bom": self.bom_model,
+            "stock_policy": self.stock_policy_model,
+            "forecast_demand": self.forecast_demand_model,
+            "scenarios": self.scenarios_model,
+            "downtime_events": self.downtime_model,
+            "setup_matrix": self.setup_matrix_model,
+        }
+
         self.batch_model = DataFrameModel()
         self.schedule_model = DataFrameModel()
         self.order_summary_model = DataFrameModel()
-        self.inventory_model = DataFrameModel()
+        self.inventory_events_model = DataFrameModel()
         self.recommendations_model = DataFrameModel()
-        self.products_model = DataFrameModel()
-        self.work_centers_model = DataFrameModel()
-        self.raw_inventory_model = DataFrameModel()
 
         self.baseline_gantt = GanttWidget()
         self.reschedule_gantt = GanttWidget()
+        self.recommendation_gantt = GanttWidget()
         self.inventory_plot = InventoryWidget()
         self.kpi_panel = KpiPanel()
         self.kpi_text = QTextEdit()
@@ -143,11 +198,14 @@ class MainWindow(QMainWindow):
     def _build_actions(self) -> None:
         open_action = QAction("Open data bundle", self)
         open_action.triggered.connect(self.load_bundle_dialog)
+        save_action = QAction("Save edited CSV bundle", self)
+        save_action.triggered.connect(self.save_edited_bundle)
         export_action = QAction("Export latest results", self)
         export_action.triggered.connect(self.export_outputs)
         legend_action = QAction("Show order legend", self)
         legend_action.triggered.connect(self.show_legend)
         self.menuBar().addAction(open_action)
+        self.menuBar().addAction(save_action)
         self.menuBar().addAction(export_action)
         self.menuBar().addAction(legend_action)
 
@@ -168,13 +226,13 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self._build_main_area())
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([340, 1180])
+        splitter.setSizes([370, 1210])
         root_layout.addWidget(splitter, stretch=1)
         self.setCentralWidget(root)
         status = QStatusBar()
         self.setStatusBar(status)
         status.showMessage("Generate demo data or load a CSV bundle.")
-        self._log("Generate a Tarkett-like bundle, then solve the baseline plan.")
+        self._log("Generate a Tarkett-like bundle, edit CSV tables if needed, then solve the baseline plan.")
 
     def _build_header(self) -> QWidget:
         box = QFrame()
@@ -186,7 +244,7 @@ class MainWindow(QMainWindow):
         font.setPointSize(15)
         font.setBold(True)
         title.setFont(font)
-        subtitle = QLabel("Flow line: Raw materials → PREP → PRESS → KANBAN → LACK → PROFILING → PACK → Finished goods")
+        subtitle = QLabel("Editable flow-line planning: CSV data → CP-SAT → baseline / reschedule / recommendation plans")
         subtitle.setStyleSheet("color: #475569;")
         title_box = QVBoxLayout()
         title_box.addWidget(title)
@@ -204,13 +262,13 @@ class MainWindow(QMainWindow):
 
     def _build_sidebar(self) -> QWidget:
         panel = QWidget()
-        panel.setMinimumWidth(310)
-        panel.setMaximumWidth(380)
+        panel.setMinimumWidth(340)
+        panel.setMaximumWidth(410)
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 8, 0)
         layout.setSpacing(8)
 
-        data_group = QGroupBox("Data & generator")
+        data_group = QGroupBox("Data & editor")
         data_layout = QVBoxLayout(data_group)
         self.bundle_path_edit = QLineEdit()
         self.bundle_path_edit.setReadOnly(True)
@@ -220,31 +278,114 @@ class MainWindow(QMainWindow):
         btn_load = QPushButton("Load CSV bundle")
         btn_load.setObjectName("SecondaryButton")
         btn_load.clicked.connect(self.load_bundle_dialog)
+        btn_save = QPushButton("Save edited tables to CSV")
+        btn_save.setObjectName("WarningButton")
+        btn_save.clicked.connect(self.save_edited_bundle)
+        btn_add_row = QPushButton("Add row to current data table")
+        btn_add_row.setObjectName("SecondaryButton")
+        btn_add_row.clicked.connect(self.add_row_to_current_data_table)
+        btn_delete_rows = QPushButton("Delete selected rows")
+        btn_delete_rows.setObjectName("SecondaryButton")
+        btn_delete_rows.clicked.connect(self.delete_selected_data_rows)
         data_layout.addWidget(QLabel("Bundle folder"))
         data_layout.addWidget(self.bundle_path_edit)
         data_layout.addWidget(btn_generate)
         data_layout.addWidget(btn_load)
+        data_layout.addWidget(btn_save)
+        data_layout.addWidget(btn_add_row)
+        data_layout.addWidget(btn_delete_rows)
 
         solver_group = QGroupBox("Solver settings")
         solver_layout = QGridLayout(solver_group)
         self.time_limit = QSpinBox()
-        self.time_limit.setRange(2, 180)
-        self.time_limit.setValue(20)
+        self.time_limit.setRange(0, 604800)
+        self.time_limit.setValue(600)
         self.time_limit.setSuffix(" s")
+        self.time_limit.setToolTip("0 = no explicit CP-SAT time limit. For demos 600 seconds is usually enough.")
         solver_layout.addWidget(QLabel("Time limit"), 0, 0)
         solver_layout.addWidget(self.time_limit, 0, 1)
-        self.scenario_edit = QLineEdit("press_downtime_3h")
-        solver_layout.addWidget(QLabel("Scenario"), 1, 0)
-        solver_layout.addWidget(self.scenario_edit, 1, 1)
+        hint = QLabel("0 means unlimited; user controls the limit.")
+        hint.setStyleSheet("color:#64748b; font-size: 11px;")
+        solver_layout.addWidget(hint, 1, 0, 1, 2)
+
+        self.shift_penalty = QSpinBox()
+        self.shift_penalty.setRange(0, 10000)
+        self.shift_penalty.setValue(3)
+        self.moved_penalty = QSpinBox()
+        self.moved_penalty.setRange(0, 1000000)
+        self.moved_penalty.setValue(1500)
+        self.sequence_penalty = QSpinBox()
+        self.sequence_penalty.setRange(0, 1000000)
+        self.sequence_penalty.setValue(2500)
+        solver_layout.addWidget(QLabel("Shift penalty/min"), 2, 0)
+        solver_layout.addWidget(self.shift_penalty, 2, 1)
+        solver_layout.addWidget(QLabel("Moved op penalty"), 3, 0)
+        solver_layout.addWidget(self.moved_penalty, 3, 1)
+        solver_layout.addWidget(QLabel("Press sequence penalty"), 4, 0)
+        solver_layout.addWidget(self.sequence_penalty, 4, 1)
+
+        scenario_group = QGroupBox("Downtime / what-if scenario")
+        scenario_layout = QVBoxLayout(scenario_group)
+        self.scenario_combo = QComboBox()
+        self.scenario_combo.currentTextChanged.connect(self.update_scenario_details)
+        self.scenario_details = QTextEdit()
+        self.scenario_details.setReadOnly(True)
+        self.scenario_details.setMinimumHeight(96)
+        scenario_layout.addWidget(QLabel("Selected scenario"))
+        scenario_layout.addWidget(self.scenario_combo)
+        scenario_layout.addWidget(self.scenario_details)
+        edit_hint = QLabel("Edit scenarios.csv / downtime_events.csv in Data editor, save, then reload/solve.")
+        edit_hint.setWordWrap(True)
+        edit_hint.setStyleSheet("color:#64748b; font-size: 11px;")
+        scenario_layout.addWidget(edit_hint)
+
+        graph_group = QGroupBox("Gantt display")
+        graph_layout = QGridLayout(graph_group)
+        self.color_by_combo = QComboBox()
+        self.color_by_combo.addItems(["order_id", "product_id", "product_family", "demand_type", "priority"])
+        self.color_by_combo.currentTextChanged.connect(self.update_gantt_plots)
+        self.show_labels_check = QCheckBox("Labels")
+        self.show_labels_check.setChecked(True)
+        self.show_due_check = QCheckBox("Deadlines")
+        self.show_due_check.setChecked(True)
+        self.show_setup_check = QCheckBox("Setup blocks")
+        self.show_setup_check.setChecked(True)
+        self.show_downtime_check = QCheckBox("Downtime")
+        self.show_downtime_check.setChecked(True)
+        self.show_priority_check = QCheckBox("Priority MTO")
+        self.show_priority_check.setChecked(True)
+        self.show_customer_check = QCheckBox("Customer MTO")
+        self.show_customer_check.setChecked(True)
+        self.show_stock_check = QCheckBox("Stock/MTS")
+        self.show_stock_check.setChecked(True)
+        for cb in [self.show_labels_check, self.show_due_check, self.show_setup_check, self.show_downtime_check, self.show_priority_check, self.show_customer_check, self.show_stock_check]:
+            cb.stateChanged.connect(self.update_gantt_plots)
+        self.machine_filter_edit = QLineEdit()
+        self.machine_filter_edit.setPlaceholderText("e.g. PRESS,PACK or leave empty")
+        self.machine_filter_edit.textChanged.connect(self.update_gantt_plots)
+        graph_layout.addWidget(QLabel("Color by"), 0, 0)
+        graph_layout.addWidget(self.color_by_combo, 0, 1)
+        graph_layout.addWidget(self.show_labels_check, 1, 0)
+        graph_layout.addWidget(self.show_due_check, 1, 1)
+        graph_layout.addWidget(self.show_setup_check, 2, 0)
+        graph_layout.addWidget(self.show_downtime_check, 2, 1)
+        graph_layout.addWidget(self.show_priority_check, 3, 0)
+        graph_layout.addWidget(self.show_customer_check, 3, 1)
+        graph_layout.addWidget(self.show_stock_check, 4, 0)
+        graph_layout.addWidget(QLabel("Machine filter"), 5, 0)
+        graph_layout.addWidget(self.machine_filter_edit, 5, 1)
 
         actions_group = QGroupBox("Actions")
         actions_layout = QVBoxLayout(actions_group)
         self.solve_button = QPushButton("Solve baseline plan")
         self.solve_button.clicked.connect(self.solve_baseline)
-        self.reschedule_button = QPushButton("Run Press downtime rescheduling")
+        self.reschedule_button = QPushButton("Run selected downtime rescheduling")
         self.reschedule_button.setObjectName("SecondaryButton")
         self.reschedule_button.clicked.connect(self.run_rescheduling)
-        self.export_button = QPushButton("Export current outputs")
+        self.recommendation_button = QPushButton("Solve with recommendations")
+        self.recommendation_button.setObjectName("SuccessButton")
+        self.recommendation_button.clicked.connect(self.solve_with_recommendations)
+        self.export_button = QPushButton("Export active result")
         self.export_button.setObjectName("SecondaryButton")
         self.export_button.clicked.connect(self.export_outputs)
         self.legend_button = QPushButton("Show order legend")
@@ -258,26 +399,18 @@ class MainWindow(QMainWindow):
         self.progress_bar.setFormat("idle")
         actions_layout.addWidget(self.solve_button)
         actions_layout.addWidget(self.reschedule_button)
+        actions_layout.addWidget(self.recommendation_button)
         actions_layout.addWidget(self.export_button)
         actions_layout.addWidget(self.legend_button)
         actions_layout.addSpacing(6)
         actions_layout.addWidget(self.progress_label)
         actions_layout.addWidget(self.progress_bar)
 
-        concept_group = QGroupBox("Demo concept")
-        concept_layout = QVBoxLayout(concept_group)
-        concept = QLabel(
-            "Orders are split into production batches. MTO batches are measured by OTIF; "
-            "MTS batches replenish finished-goods stock. Kanban is modeled as a WIP buffer after PRESS."
-        )
-        concept.setWordWrap(True)
-        concept.setStyleSheet("color: #475569;")
-        concept_layout.addWidget(concept)
-
         layout.addWidget(data_group)
         layout.addWidget(solver_group)
+        layout.addWidget(scenario_group)
+        layout.addWidget(graph_group)
         layout.addWidget(actions_group)
-        layout.addWidget(concept_group)
         layout.addStretch(1)
         return panel
 
@@ -291,45 +424,40 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.setUsesScrollButtons(True)
+        self.tabs.currentChanged.connect(self.on_main_tab_changed)
 
-        self.orders_table = self._table(self.orders_model)
         self.batch_table = self._table(self.batch_model)
         self.schedule_table = self._table(self.schedule_model)
         self.order_summary_table = self._table(self.order_summary_model)
-        self.inventory_table = self._table(self.inventory_model)
+        self.inventory_events_table = self._table(self.inventory_events_model)
         self.recommendations_table = self._table(self.recommendations_model)
-        self.products_table = self._table(self.products_model)
-        self.work_centers_table = self._table(self.work_centers_model)
-        self.raw_inventory_table = self._table(self.raw_inventory_model)
 
         self.tabs.addTab(self._wrap_scrollable(self.baseline_gantt), "Baseline Plan")
         self.tabs.addTab(self._wrap_scrollable(self.reschedule_gantt), "Rescheduled Plan")
+        self.tabs.addTab(self._wrap_scrollable(self.recommendation_gantt), "Recommended Plan")
         self.tabs.addTab(self.batch_table, "Batch split")
         self.tabs.addTab(self.schedule_table, "Operations table")
         self.tabs.addTab(self.order_summary_table, "Order summary")
-        self.tabs.addTab(self.orders_table, "Orders")
         self.tabs.addTab(self._wrap_scrollable(self.inventory_plot), "Inventory chart")
-        self.tabs.addTab(self.inventory_table, "Inventory events")
+        self.tabs.addTab(self.inventory_events_table, "Inventory events")
         self.tabs.addTab(self.recommendations_table, "Recommendations")
-        self.tabs.addTab(self._build_raw_data_tab(), "Raw data")
+        self.tabs.addTab(self._build_data_editor_tab(), "Data editor")
         self.tabs.addTab(self.kpi_text, "KPI details")
         self.tabs.addTab(self.status_text, "Solver log")
         layout.addWidget(self.tabs, stretch=1)
         return area
 
-    def _build_raw_data_tab(self) -> QWidget:
+    def _build_data_editor_tab(self) -> QWidget:
         widget = QWidget()
-        layout = QGridLayout(widget)
+        layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(QLabel("Products"), 0, 0)
-        layout.addWidget(self.products_table, 1, 0)
-        layout.addWidget(QLabel("Work centers"), 2, 0)
-        layout.addWidget(self.work_centers_table, 3, 0)
-        layout.addWidget(QLabel("Inventory / warehouses"), 4, 0)
-        layout.addWidget(self.raw_inventory_table, 5, 0)
-        layout.setRowStretch(1, 1)
-        layout.setRowStretch(3, 1)
-        layout.setRowStretch(5, 1)
+        self.data_tabs = QTabWidget()
+        self.data_tables: Dict[str, QTableView] = {}
+        for key, model in self.data_models.items():
+            table = self._table(model, editable=True)
+            self.data_tables[key] = table
+            self.data_tabs.addTab(table, DATA_FILES[key])
+        layout.addWidget(self.data_tabs)
         return widget
 
     def _wrap_scrollable(self, widget: QWidget) -> QScrollArea:
@@ -341,11 +469,14 @@ class MainWindow(QMainWindow):
         scroll.setFrameShape(QFrame.NoFrame)
         return scroll
 
-    def _table(self, model: DataFrameModel) -> QTableView:
+    def _table(self, model: DataFrameModel, *, editable: bool = False) -> QTableView:
         view = QTableView()
         view.setModel(model)
         view.setSortingEnabled(True)
         view.setAlternatingRowColors(True)
+        view.setSelectionBehavior(QAbstractItemView.SelectRows)
+        if editable:
+            view.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked | QAbstractItemView.EditKeyPressed)
         view.horizontalHeader().setStretchLastSection(False)
         view.resizeColumnsToContents()
         return view
@@ -389,6 +520,7 @@ class MainWindow(QMainWindow):
             self._busy("Generating demo data")
             path = generate_tarkett_like_demo_bundle(DemoConfig(output_dir="generated_demo_data/tarkett_like_demo"))
             self._set_bundle_loaded(Path(path))
+            self.results = {"baseline": None, "reschedule": None, "recommendation": None}
             self._load_preview()
             self._idle("demo data generated")
             self._log(f"Generated Tarkett-like demo bundle: {Path(path).resolve()}")
@@ -402,6 +534,7 @@ class MainWindow(QMainWindow):
         if not folder:
             return
         self._set_bundle_loaded(Path(folder))
+        self.results = {"baseline": None, "reschedule": None, "recommendation": None}
         self._load_preview()
         self._idle("bundle loaded")
         self._log(f"Loaded bundle: {self.bundle_dir}")
@@ -410,17 +543,130 @@ class MainWindow(QMainWindow):
         if self.bundle_dir is None:
             return
         try:
-            bundle = load_data_bundle(self.bundle_dir)
-            self.orders_model.set_dataframe(bundle.orders)
-            self.batch_model.set_dataframe(build_batches(bundle))
-            self.products_model.set_dataframe(bundle.products)
-            self.work_centers_model.set_dataframe(bundle.work_centers)
-            self.raw_inventory_model.set_dataframe(bundle.inventory)
-            for table in [self.orders_table, self.batch_table, self.products_table, self.work_centers_table, self.raw_inventory_table]:
+            # Data editor must show the raw CSV files, not auto-generated MTS rows.
+            # The preview batch split still uses the effective planning bundle with
+            # MTS replenishment orders generated from stock_policy.csv.
+            raw_bundle = load_data_bundle(self.bundle_dir, auto_generate_mts_orders=False)
+            planning_bundle = load_data_bundle(self.bundle_dir, auto_generate_mts_orders=True)
+            frames = {
+                "orders": raw_bundle.orders,
+                "products": raw_bundle.products,
+                "work_centers": raw_bundle.work_centers,
+                "routes": raw_bundle.routes,
+                "shifts": raw_bundle.shifts,
+                "inventory": raw_bundle.inventory,
+                "inventory_arrivals": raw_bundle.inventory_arrivals,
+                "bom": raw_bundle.bom,
+                "stock_policy": raw_bundle.stock_policy,
+                "forecast_demand": raw_bundle.forecast_demand,
+                "scenarios": raw_bundle.scenarios,
+                "downtime_events": raw_bundle.downtime_events,
+                "setup_matrix": raw_bundle.setup_matrix,
+            }
+            for key, frame in frames.items():
+                self.data_models[key].set_dataframe(frame)
+            self.batch_model.set_dataframe(build_batches(planning_bundle))
+            self.downtime_events = raw_bundle.downtime_events.copy()
+            self._populate_scenarios(raw_bundle)
+            for table in list(self.data_tables.values()) + [self.batch_table]:
                 table.resizeColumnsToContents()
         except Exception as exc:
             QMessageBox.critical(self, "Load error", str(exc))
             self._log(f"Load error: {exc}")
+
+    def _populate_scenarios(self, bundle) -> None:
+        current = self.scenario_combo.currentText() if hasattr(self, "scenario_combo") else ""
+        self.scenario_combo.blockSignals(True)
+        self.scenario_combo.clear()
+        names = []
+        if not bundle.scenarios.empty and "scenario_name" in bundle.scenarios.columns:
+            names = bundle.scenarios["scenario_name"].dropna().astype(str).tolist()
+        if "baseline_no_disruption" not in names:
+            names.insert(0, "baseline_no_disruption")
+        for name in names:
+            self.scenario_combo.addItem(name)
+        if current and current in names:
+            self.scenario_combo.setCurrentText(current)
+        elif "press_downtime_3h" in names:
+            self.scenario_combo.setCurrentText("press_downtime_3h")
+        self.scenario_combo.blockSignals(False)
+        self.update_scenario_details(self.scenario_combo.currentText())
+
+    def update_scenario_details(self, scenario_name: str | None = None) -> None:
+        scenario_name = scenario_name or self.scenario_combo.currentText()
+        lines = [f"Scenario: {scenario_name}"]
+        scenarios = self.scenarios_model.dataframe()
+        downtime = self.downtime_model.dataframe()
+        if not scenarios.empty and "scenario_name" in scenarios.columns:
+            match = scenarios[scenarios["scenario_name"].astype(str) == str(scenario_name)]
+            if not match.empty:
+                row = match.iloc[0]
+                lines.append(f"Description: {row.get('description', '')}")
+                lines.append(f"Event start: {row.get('event_start', '')}")
+                lines.append(f"Replan time: {row.get('replan_time', '')}")
+        if not downtime.empty and "scenario_name" in downtime.columns:
+            matches = downtime[downtime["scenario_name"].astype(str) == str(scenario_name)]
+            if not matches.empty:
+                lines.append("")
+                lines.append("Downtime events:")
+                for _, row in matches.iterrows():
+                    lines.append(
+                        f"- {row.get('machine_id', '')}: start={row.get('event_start', '')}, "
+                        f"estimated={row.get('estimated_duration_minutes', '')} min, "
+                        f"actual={row.get('actual_duration_minutes', '')} min, reason={row.get('reason', '')}"
+                    )
+        lines.append("")
+        lines.append("Edit this in Data editor → scenarios.csv / downtime_events.csv.")
+        self.scenario_details.setPlainText("\n".join(lines))
+
+    def save_edited_bundle(self) -> None:
+        if self.bundle_dir is None:
+            QMessageBox.information(self, "No bundle", "Generate or load a bundle first.")
+            return
+        try:
+            for key, filename in DATA_FILES.items():
+                df = self.data_models[key].dataframe()
+                df.to_csv(self.bundle_dir / filename, index=False)
+                self.data_models[key].clear_modified()
+            self._load_preview()
+            self._log(f"Saved edited CSV bundle: {self.bundle_dir.resolve()}")
+            QMessageBox.information(self, "Saved", "Edited CSV tables were saved. Solve again to use the new data.")
+        except Exception as exc:
+            QMessageBox.critical(self, "Save error", str(exc))
+            self._log(f"Save error: {exc}")
+
+    def add_row_to_current_data_table(self) -> None:
+        key = self._current_data_key()
+        if not key:
+            QMessageBox.information(self, "Data editor", "Open the Data editor tab and choose a table first.")
+            return
+        self.data_models[key].insert_blank_row()
+        self._log(f"Added blank row to {DATA_FILES[key]}.")
+
+    def delete_selected_data_rows(self) -> None:
+        key = self._current_data_key()
+        if not key:
+            QMessageBox.information(self, "Data editor", "Open the Data editor tab and choose a table first.")
+            return
+        table = self.data_tables[key]
+        rows = [idx.row() for idx in table.selectionModel().selectedRows()]
+        self.data_models[key].delete_rows(rows)
+        self._log(f"Deleted {len(rows)} selected row(s) from {DATA_FILES[key]}.")
+
+    def _current_data_key(self) -> str:
+        if not hasattr(self, "data_tabs"):
+            return ""
+        idx = self.data_tabs.currentIndex()
+        keys = list(self.data_models.keys())
+        return keys[idx] if 0 <= idx < len(keys) else ""
+
+    def _solve_kwargs(self) -> Dict[str, int]:
+        return {
+            "time_limit_seconds": int(self.time_limit.value()),
+            "stability_shift_penalty_per_minute": int(self.shift_penalty.value()),
+            "stability_moved_penalty": int(self.moved_penalty.value()),
+            "order_sequence_penalty": int(self.sequence_penalty.value()),
+        }
 
     def solve_baseline(self) -> None:
         if self.bundle_dir is None:
@@ -429,62 +675,149 @@ class MainWindow(QMainWindow):
             return
         try:
             self._busy("Solving baseline")
-            self.baseline_result = solve_schedule(
+            self.results["baseline"] = solve_schedule(
                 self.bundle_dir,
                 scenario_name="baseline_no_disruption",
-                time_limit_seconds=int(self.time_limit.value()),
+                **self._solve_kwargs(),
             )
-            self._show_result(self.baseline_result, "Baseline plan", target="baseline")
+            self._show_result("baseline")
             self.tabs.setCurrentIndex(0)
             self._idle("baseline solved")
-            self._log(f"Baseline solved: {self.baseline_result.status}; method={self.baseline_result.metadata.get('method')}")
+            result = self.results["baseline"]
+            self._log(f"Baseline solved: {result.status}; method={result.metadata.get('method')}")
         except Exception as exc:
             QMessageBox.critical(self, "Solver error", str(exc))
             self._idle("solver failed")
             self._log(f"Solver error: {exc}")
 
     def run_rescheduling(self) -> None:
-        if self.baseline_result is None:
+        if self.results["baseline"] is None:
             self.solve_baseline()
-        if self.bundle_dir is None or self.baseline_result is None:
+        if self.bundle_dir is None or self.results["baseline"] is None:
             return
-        scenario = self.scenario_edit.text().strip() or "press_downtime_3h"
+        scenario = self.scenario_combo.currentText().strip() or "press_downtime_3h"
+        if scenario == "baseline_no_disruption":
+            scenario = "press_downtime_3h"
         try:
             self._busy("Running rescheduling")
-            self.reschedule_result = solve_schedule(
+            baseline = self.results["baseline"]
+            self.results["reschedule"] = solve_schedule(
                 self.bundle_dir,
                 scenario_name=scenario,
-                previous_schedule=self.baseline_result.schedule,
-                time_limit_seconds=int(self.time_limit.value()),
+                previous_schedule=baseline.schedule,
+                **self._solve_kwargs(),
             )
-            self._show_result(self.reschedule_result, f"Rescheduled plan: {scenario}", target="reschedule")
+            self._show_result("reschedule")
             self.tabs.setCurrentIndex(1)
             self._idle("rescheduling solved")
-            self._log(f"Rescheduling solved: {self.reschedule_result.status}; method={self.reschedule_result.metadata.get('method')}")
+            result = self.results["reschedule"]
+            self._log(f"Rescheduling solved: {result.status}; method={result.metadata.get('method')}")
         except Exception as exc:
             QMessageBox.critical(self, "Rescheduling error", str(exc))
             self._idle("rescheduling failed")
             self._log(f"Rescheduling error: {exc}")
 
-    def _show_result(self, result, title: str, *, target: str) -> None:
-        batch_summary = compute_batch_summary(result.schedule)
-        self.batch_model.set_dataframe(batch_summary)
-        self.schedule_model.set_dataframe(result.schedule)
-        self.order_summary_model.set_dataframe(result.order_summary)
-        self.inventory_model.set_dataframe(result.inventory_projection)
-        self.recommendations_model.set_dataframe(result.recommendations)
-        if target == "baseline":
-            self.baseline_gantt.plot_schedule(result.schedule, title)
-        else:
-            self.reschedule_gantt.plot_schedule(result.schedule, title)
-        self.inventory_plot.plot_inventory(result.inventory_projection, "Inventory projection")
+    def solve_with_recommendations(self) -> None:
+        if self.results["baseline"] is None:
+            self.solve_baseline()
+        if self.bundle_dir is None:
+            return
+        # If a rescheduling plan exists, recommendations are applied to that what-if scenario.
+        # Otherwise they guide the baseline solve by protecting customer OTIF and pushing MTS into slack capacity.
+        scenario = "baseline_no_disruption"
+        previous = None
+        base = self.results.get("reschedule") or self.results.get("baseline")
+        if self.results.get("reschedule") is not None:
+            scenario = self.scenario_combo.currentText().strip() or "press_downtime_3h"
+            previous = self.results["baseline"].schedule if self.results.get("baseline") is not None else None
+        try:
+            self._busy("Solving with recommendations")
+            self.results["recommendation"] = solve_schedule(
+                self.bundle_dir,
+                scenario_name=scenario,
+                previous_schedule=previous,
+                recommendation_mode=True,
+                **self._solve_kwargs(),
+            )
+            self._show_result("recommendation")
+            self.tabs.setCurrentIndex(2)
+            self._idle("recommended plan solved")
+            result = self.results["recommendation"]
+            self._log(f"Recommended solve: {result.status}; method={result.metadata.get('method')}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Recommendation solver error", str(exc))
+            self._idle("recommendation solve failed")
+            self._log(f"Recommendation solver error: {exc}")
+
+    def _show_result(self, key: str) -> None:
+        result = self.results.get(key)
+        if result is None:
+            self._set_result_tables(None)
+            return
+        self.active_result_key = key
+        self._set_result_tables(result)
+        self.update_gantt_plots()
+        self.inventory_plot.plot_inventory(result.inventory_projection, f"Inventory projection — {RESULT_TITLES.get(key, key)}")
         self.kpi_panel.set_kpis(result.kpis)
         self.kpi_text.setPlainText(self._format_kpis(result))
-        for table in [self.batch_table, self.schedule_table, self.order_summary_table, self.inventory_table, self.recommendations_table]:
+        for table in [self.batch_table, self.schedule_table, self.order_summary_table, self.inventory_events_table, self.recommendations_table]:
             table.resizeColumnsToContents()
 
+    def _set_result_tables(self, result) -> None:
+        if result is None:
+            for model in [self.batch_model, self.schedule_model, self.order_summary_model, self.inventory_events_model, self.recommendations_model]:
+                model.set_dataframe(pd.DataFrame())
+            self.kpi_panel.set_kpis({})
+            self.kpi_text.setPlainText("")
+            return
+        self.batch_model.set_dataframe(compute_batch_summary(result.schedule))
+        self.schedule_model.set_dataframe(result.schedule)
+        self.order_summary_model.set_dataframe(result.order_summary)
+        self.inventory_events_model.set_dataframe(result.inventory_projection)
+        self.recommendations_model.set_dataframe(result.recommendations)
+
+    def on_main_tab_changed(self, index: int) -> None:
+        if index == 0:
+            self._show_result("baseline")
+        elif index == 1:
+            self._show_result("reschedule")
+        elif index == 2:
+            self._show_result("recommendation")
+
+    def _visible_demand_types(self) -> list[str]:
+        types = []
+        if self.show_priority_check.isChecked():
+            types.append("PRIORITY_CUSTOMER_ORDER")
+        if self.show_customer_check.isChecked():
+            types.append("CUSTOMER_ORDER")
+        if self.show_stock_check.isChecked():
+            types.append("STOCK_ORDER")
+        return types
+
+    def update_gantt_plots(self) -> None:
+        options = {
+            "color_by": self.color_by_combo.currentText() if hasattr(self, "color_by_combo") else "order_id",
+            "show_labels": getattr(self, "show_labels_check", None).isChecked() if hasattr(self, "show_labels_check") else True,
+            "show_due_dates": getattr(self, "show_due_check", None).isChecked() if hasattr(self, "show_due_check") else True,
+            "show_setup": getattr(self, "show_setup_check", None).isChecked() if hasattr(self, "show_setup_check") else True,
+            "show_downtime": getattr(self, "show_downtime_check", None).isChecked() if hasattr(self, "show_downtime_check") else True,
+            "downtime_events": self.downtime_model.dataframe() if hasattr(self, "downtime_model") else self.downtime_events,
+            "visible_demand_types": self._visible_demand_types() if hasattr(self, "show_priority_check") else None,
+            "machine_filter": self.machine_filter_edit.text() if hasattr(self, "machine_filter_edit") else "",
+        }
+        for key, widget in [("baseline", self.baseline_gantt), ("reschedule", self.reschedule_gantt), ("recommendation", self.recommendation_gantt)]:
+            result = self.results.get(key)
+            title = RESULT_TITLES.get(key, key)
+            if result is not None:
+                scenario = result.metadata.get("scenario_name", "")
+                if scenario:
+                    title = f"{title}: {scenario}"
+                widget.plot_schedule(result.schedule, title, **options)
+            else:
+                widget.plot_schedule(pd.DataFrame(), title, **options)
+
     def _format_kpis(self, result) -> str:
-        lines = ["Solver metadata", "---------------"]
+        lines = [f"View: {RESULT_TITLES.get(self.active_result_key, self.active_result_key)}", "", "Solver metadata", "---------------"]
         for k, v in result.metadata.items():
             lines.append(f"{k}: {v}")
         lines.extend(["", "Status", "------", f"status: {result.status}", f"objective_value: {result.objective_value}", f"solve_time_seconds: {result.solve_time_seconds:.3f}"])
@@ -494,7 +827,7 @@ class MainWindow(QMainWindow):
         return "\n".join(lines)
 
     def export_outputs(self) -> None:
-        result = self.reschedule_result or self.baseline_result
+        result = self.results.get(self.active_result_key) or self.results.get("recommendation") or self.results.get("reschedule") or self.results.get("baseline")
         if result is None:
             QMessageBox.information(self, "Nothing to export", "Solve a plan first.")
             return
@@ -504,11 +837,11 @@ class MainWindow(QMainWindow):
         out = save_result(result, folder)
         batch_summary = compute_batch_summary(result.schedule)
         batch_summary.to_csv(Path(out) / "batch_summary.csv", index=False)
-        self._log(f"Exported outputs to: {out}")
+        self._log(f"Exported active result ({self.active_result_key}) to: {out}")
         QMessageBox.information(self, "Export complete", f"Saved CSV outputs to:\n{out}")
 
     def show_legend(self) -> None:
-        result = self.reschedule_result or self.baseline_result
+        result = self.results.get(self.active_result_key) or self.results.get("recommendation") or self.results.get("reschedule") or self.results.get("baseline")
         schedule = None if result is None else result.schedule
         self.legend_window = OrderLegendWindow(schedule, self)
         self.legend_window.show()
