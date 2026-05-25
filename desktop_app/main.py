@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import traceback
 from typing import Dict, Optional
 
 import pandas as pd
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -130,6 +131,55 @@ RESULT_TITLES = {
 }
 
 
+
+
+class SolverWorker(QObject):
+    """Run a long CP-SAT solve outside the Qt GUI thread.
+
+    Without this worker Windows marks the application as "Not responding"
+    because the main event loop is blocked while OR-Tools is searching.
+    """
+
+    finished = Signal(str, object)
+    failed = Signal(str, str)
+    progress = Signal(str)
+
+    def __init__(
+        self,
+        *,
+        job_key: str,
+        bundle_dir: Path,
+        scenario_name: str,
+        solve_kwargs: dict,
+        previous_schedule=None,
+        recommendation_mode: bool = False,
+    ) -> None:
+        super().__init__()
+        self.job_key = job_key
+        self.bundle_dir = Path(bundle_dir)
+        self.scenario_name = scenario_name
+        self.solve_kwargs = dict(solve_kwargs)
+        self.previous_schedule = previous_schedule
+        self.recommendation_mode = recommendation_mode
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            self.progress.emit(
+                f"Started {RESULT_TITLES.get(self.job_key, self.job_key)}: "
+                f"scenario={self.scenario_name}, limit={self.solve_kwargs.get('time_limit_seconds')} s"
+            )
+            result = solve_schedule(
+                self.bundle_dir,
+                scenario_name=self.scenario_name,
+                previous_schedule=self.previous_schedule,
+                recommendation_mode=self.recommendation_mode,
+                **self.solve_kwargs,
+            )
+            self.finished.emit(self.job_key, result)
+        except Exception:
+            self.failed.emit(self.job_key, traceback.format_exc())
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -142,6 +192,8 @@ class MainWindow(QMainWindow):
         self.active_result_key = "baseline"
         self.legend_window: Optional[OrderLegendWindow] = None
         self.downtime_events = pd.DataFrame()
+        self.solver_thread: Optional[QThread] = None
+        self.solver_worker: Optional[SolverWorker] = None
 
         self.orders_model = DataFrameModel(editable=True)
         self.products_model = DataFrameModel(editable=True)
@@ -933,6 +985,100 @@ class MainWindow(QMainWindow):
         self.update_scenario_details(scenario_name)
         self._log(f"Applied downtime edit: {scenario_name}, {machine}, {duration} min. It will be auto-saved before solving.")
 
+    def _solver_is_running(self) -> bool:
+        return self.solver_thread is not None and self.solver_thread.isRunning()
+
+    def _set_solve_controls_enabled(self, enabled: bool) -> None:
+        for name in [
+            "solve_button",
+            "reschedule_button",
+            "recommendation_button",
+            "export_button",
+            "legend_button",
+        ]:
+            widget = getattr(self, name, None)
+            if widget is not None:
+                widget.setEnabled(enabled)
+
+    def _start_solver_job(
+        self,
+        *,
+        job_key: str,
+        scenario_name: str,
+        previous_schedule=None,
+        recommendation_mode: bool = False,
+    ) -> None:
+        if self.bundle_dir is None:
+            return
+        if self._solver_is_running():
+            QMessageBox.information(self, "Solver is running", "Wait until the current solve is finished.")
+            return
+
+        self._ensure_edits_saved_before_solve()
+        message = {
+            "baseline": "Solving baseline",
+            "reschedule": "Running rescheduling",
+            "recommendation": "Solving with recommendations",
+        }.get(job_key, "Solving")
+        self._busy(message)
+        self._set_solve_controls_enabled(False)
+
+        thread = QThread(self)
+        worker = SolverWorker(
+            job_key=job_key,
+            bundle_dir=self.bundle_dir,
+            scenario_name=scenario_name,
+            solve_kwargs=self._solve_kwargs(),
+            previous_schedule=previous_schedule,
+            recommendation_mode=recommendation_mode,
+        )
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.run)
+        worker.progress.connect(self._log)
+        worker.finished.connect(self._on_solver_finished)
+        worker.failed.connect(self._on_solver_failed)
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        worker.failed.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._on_solver_thread_finished)
+
+        self.solver_thread = thread
+        self.solver_worker = worker
+        thread.start()
+
+    @Slot(str, object)
+    def _on_solver_finished(self, job_key: str, result) -> None:
+        self.results[job_key] = result
+        self._show_result(job_key)
+        tab_index = {"baseline": 0, "reschedule": 1, "recommendation": 2}.get(job_key, 0)
+        self.tabs.setCurrentIndex(tab_index)
+        status_text = {
+            "baseline": "baseline solved",
+            "reschedule": "rescheduling solved",
+            "recommendation": "recommended plan solved",
+        }.get(job_key, "solver finished")
+        self._idle(status_text)
+        self._set_solve_controls_enabled(True)
+        self._log(
+            f"{RESULT_TITLES.get(job_key, job_key)} solved: {result.status}; "
+            f"method={result.metadata.get('method')}; time={result.solve_time_seconds:.2f}s"
+        )
+
+    @Slot(str, str)
+    def _on_solver_failed(self, job_key: str, error_text: str) -> None:
+        self._idle("solver failed")
+        self._set_solve_controls_enabled(True)
+        self._log(f"{RESULT_TITLES.get(job_key, job_key)} failed:\n{error_text}")
+        QMessageBox.critical(self, "Solver error", error_text)
+
+    @Slot()
+    def _on_solver_thread_finished(self) -> None:
+        self.solver_thread = None
+        self.solver_worker = None
+
     def _solve_kwargs(self) -> Dict[str, int]:
         return {
             "time_limit_seconds": int(self.time_limit.value()),
@@ -953,82 +1099,52 @@ class MainWindow(QMainWindow):
             self.generate_demo_data()
         if self.bundle_dir is None:
             return
-        try:
-            self._ensure_edits_saved_before_solve()
-            self._busy("Solving baseline")
-            self.results["baseline"] = solve_schedule(
-                self.bundle_dir,
-                scenario_name="baseline_no_disruption",
-                **self._solve_kwargs(),
-            )
-            self._show_result("baseline")
-            self.tabs.setCurrentIndex(0)
-            self._idle("baseline solved")
-            result = self.results["baseline"]
-            self._log(f"Baseline solved: {result.status}; method={result.metadata.get('method')}")
-        except Exception as exc:
-            QMessageBox.critical(self, "Solver error", str(exc))
-            self._idle("solver failed")
-            self._log(f"Solver error: {exc}")
+        self._start_solver_job(
+            job_key="baseline",
+            scenario_name="baseline_no_disruption",
+        )
 
     def run_rescheduling(self) -> None:
         if self.results["baseline"] is None:
-            self.solve_baseline()
-        if self.bundle_dir is None or self.results["baseline"] is None:
+            QMessageBox.information(
+                self,
+                "Baseline required",
+                "Solve the baseline plan first. Rescheduling needs the baseline plan to calculate movement penalties.",
+            )
+            return
+        if self.bundle_dir is None:
             return
         scenario = self._selected_disruption_scenario()
-        try:
-            self._ensure_edits_saved_before_solve()
-            self._busy("Running rescheduling")
-            baseline = self.results["baseline"]
-            self.results["reschedule"] = solve_schedule(
-                self.bundle_dir,
-                scenario_name=scenario,
-                previous_schedule=baseline.schedule,
-                **self._solve_kwargs(),
-            )
-            self._show_result("reschedule")
-            self.tabs.setCurrentIndex(1)
-            self._idle("rescheduling solved")
-            result = self.results["reschedule"]
-            self._log(f"Rescheduling solved: {result.status}; method={result.metadata.get('method')}")
-        except Exception as exc:
-            QMessageBox.critical(self, "Rescheduling error", str(exc))
-            self._idle("rescheduling failed")
-            self._log(f"Rescheduling error: {exc}")
+        baseline = self.results["baseline"]
+        self._start_solver_job(
+            job_key="reschedule",
+            scenario_name=scenario,
+            previous_schedule=baseline.schedule,
+        )
 
     def solve_with_recommendations(self) -> None:
         if self.results["baseline"] is None:
-            self.solve_baseline()
+            QMessageBox.information(
+                self,
+                "Baseline required",
+                "Solve the baseline plan first. Then run the recommendation solve.",
+            )
+            return
         if self.bundle_dir is None:
             return
-        # If a rescheduling plan exists, recommendations are applied to that what-if scenario.
-        # Otherwise they guide the baseline solve by protecting customer OTIF and pushing MTS into slack capacity.
+
         scenario = "baseline_no_disruption"
         previous = None
-        base = self.results.get("reschedule") or self.results.get("baseline")
         if self.results.get("reschedule") is not None:
             scenario = self._selected_disruption_scenario()
-            previous = self.results["baseline"].schedule if self.results.get("baseline") is not None else None
-        try:
-            self._ensure_edits_saved_before_solve()
-            self._busy("Solving with recommendations")
-            self.results["recommendation"] = solve_schedule(
-                self.bundle_dir,
-                scenario_name=scenario,
-                previous_schedule=previous,
-                recommendation_mode=True,
-                **self._solve_kwargs(),
-            )
-            self._show_result("recommendation")
-            self.tabs.setCurrentIndex(2)
-            self._idle("recommended plan solved")
-            result = self.results["recommendation"]
-            self._log(f"Recommended solve: {result.status}; method={result.metadata.get('method')}")
-        except Exception as exc:
-            QMessageBox.critical(self, "Recommendation solver error", str(exc))
-            self._idle("recommendation solve failed")
-            self._log(f"Recommendation solver error: {exc}")
+            previous = self.results["baseline"].schedule
+
+        self._start_solver_job(
+            job_key="recommendation",
+            scenario_name=scenario,
+            previous_schedule=previous,
+            recommendation_mode=True,
+        )
 
     def _show_result(self, key: str) -> None:
         result = self.results.get(key)
