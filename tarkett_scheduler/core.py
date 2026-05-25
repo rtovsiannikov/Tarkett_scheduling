@@ -314,7 +314,10 @@ def _downtime_map(bundle: DataBundle, scenario_name: str, origin: pd.Timestamp) 
     df = bundle.downtime_events[bundle.downtime_events["scenario_name"] == scenario_name].copy()
     for _, row in df.iterrows():
         start = _to_minute(row["event_start"], origin)
-        duration = int(row.get("estimated_duration_minutes", row.get("actual_duration_minutes", 0)))
+        duration_raw = row.get("actual_duration_minutes", row.get("estimated_duration_minutes", 0))
+        if pd.isna(duration_raw) or float(duration_raw) <= 0:
+            duration_raw = row.get("estimated_duration_minutes", 0)
+        duration = int(duration_raw)
         out.setdefault(str(row["machine_id"]), []).append((start, start + duration))
     return {k: _merge_intervals(v) for k, v in out.items()}
 
@@ -472,25 +475,37 @@ def _work_center_oee(bundle: DataBundle, work_center_id: str) -> float:
     return float(match.iloc[0].get("default_oee", 1.0) or 1.0)
 
 
-def _priority_weight(order: pd.Series, *, recommendation_mode: bool = False) -> int:
+def _priority_weight(
+    order: pd.Series,
+    *,
+    recommendation_mode: bool = False,
+    priority_tardiness_weight: int = 2000,
+    customer_tardiness_weight: int = 450,
+    stock_tardiness_weight: int = 80,
+) -> int:
+    """Return the per-minute lateness weight used by the objective.
+
+    Earlier demo versions hard-coded these values. The desktop app now exposes
+    them so users can tune the model just like in the original scheduling MVP.
+    Recommendation mode keeps the same user-controlled weights but boosts MTO
+    protection and weakens MTS lateness, which mimics the old "apply
+    recommendations" behavior without hiding the objective coefficients.
+    """
     dtype = str(order.get("demand_type", "CUSTOMER_ORDER")).upper()
-    base = int(order.get("priority", 5) or 5)
-    if recommendation_mode:
-        # Guided solve: protect customer OTIF more aggressively and let MTS
-        # replenishment move to slack capacity unless stock policy makes it urgent.
-        if dtype == "PRIORITY_CUSTOMER_ORDER":
-            return 2500 + base * 180
-        if dtype == "CUSTOMER_ORDER":
-            return 900 + base * 70
-        if dtype == "STOCK_ORDER":
-            return 25 + base * 4
     if dtype == "PRIORITY_CUSTOMER_ORDER":
-        return 1000 + base * 100
-    if dtype == "CUSTOMER_ORDER":
-        return 300 + base * 30
-    if dtype == "STOCK_ORDER":
-        return 60 + base * 10
-    return base
+        weight = int(priority_tardiness_weight)
+    elif dtype == "CUSTOMER_ORDER":
+        weight = int(customer_tardiness_weight)
+    elif dtype == "STOCK_ORDER":
+        weight = int(stock_tardiness_weight)
+    else:
+        weight = max(1, int(order.get("priority", 5) or 5))
+    if recommendation_mode:
+        if dtype in {"PRIORITY_CUSTOMER_ORDER", "CUSTOMER_ORDER"}:
+            weight = int(round(weight * 1.35))
+        elif dtype == "STOCK_ORDER":
+            weight = max(1, int(round(weight * 0.35)))
+    return max(0, weight)
 
 
 # ---------------------------------------------------------------------------
@@ -511,6 +526,13 @@ def solve_schedule(
     stability_shift_penalty_per_minute: int = 3,
     stability_moved_penalty: int = 0,
     order_sequence_penalty: int = 0,
+    missed_priority_penalty: int = 200_000,
+    missed_customer_penalty: int = 80_000,
+    missed_stock_penalty: int = 5_000,
+    priority_tardiness_weight: int = 2_000,
+    customer_tardiness_weight: int = 450,
+    stock_tardiness_weight: int = 80,
+    makespan_weight: int = 1,
 ) -> SolveResult:
     """Solve baseline or rescheduling scenario."""
     t0 = time.time()
@@ -532,6 +554,13 @@ def solve_schedule(
                 stability_shift_penalty_per_minute=stability_shift_penalty_per_minute,
                 stability_moved_penalty=stability_moved_penalty,
                 order_sequence_penalty=order_sequence_penalty,
+                missed_priority_penalty=missed_priority_penalty,
+                missed_customer_penalty=missed_customer_penalty,
+                missed_stock_penalty=missed_stock_penalty,
+                priority_tardiness_weight=priority_tardiness_weight,
+                customer_tardiness_weight=customer_tardiness_weight,
+                stock_tardiness_weight=stock_tardiness_weight,
+                makespan_weight=makespan_weight,
             )
             method = "CP-SAT"
         except Exception as exc:
@@ -576,6 +605,13 @@ def solve_schedule(
             "stability_shift_penalty_per_minute": stability_shift_penalty_per_minute,
             "stability_moved_penalty": stability_moved_penalty,
             "order_sequence_penalty": order_sequence_penalty,
+            "missed_priority_penalty": missed_priority_penalty,
+            "missed_customer_penalty": missed_customer_penalty,
+            "missed_stock_penalty": missed_stock_penalty,
+            "priority_tardiness_weight": priority_tardiness_weight,
+            "customer_tardiness_weight": customer_tardiness_weight,
+            "stock_tardiness_weight": stock_tardiness_weight,
+            "makespan_weight": makespan_weight,
             "replan_time": None if replan_time is None else str(replan_time),
             "bundle_dir": str(bundle.bundle_dir),
             "operations": len(operations),
@@ -596,6 +632,13 @@ def _solve_cp_sat(
     stability_shift_penalty_per_minute: int = 3,
     stability_moved_penalty: int = 0,
     order_sequence_penalty: int = 0,
+    missed_priority_penalty: int = 200_000,
+    missed_customer_penalty: int = 80_000,
+    missed_stock_penalty: int = 5_000,
+    priority_tardiness_weight: int = 2_000,
+    customer_tardiness_weight: int = 450,
+    stock_tardiness_weight: int = 80,
+    makespan_weight: int = 1,
 ) -> Tuple[pd.DataFrame, str, Optional[float]]:
     assert cp_model is not None
     origin = _time_origin(bundle)
@@ -677,7 +720,16 @@ def _solve_cp_sat(
             model.AddNoOverlap(intervals)
 
     orders = bundle.orders.copy()
-    order_weights = {str(row["order_id"]): _priority_weight(row, recommendation_mode=recommendation_mode) for _, row in orders.iterrows()}
+    order_weights = {
+        str(row["order_id"]): _priority_weight(
+            row,
+            recommendation_mode=recommendation_mode,
+            priority_tardiness_weight=priority_tardiness_weight,
+            customer_tardiness_weight=customer_tardiness_weight,
+            stock_tardiness_weight=stock_tardiness_weight,
+        )
+        for _, row in orders.iterrows()
+    }
     completion_vars: Dict[str, Any] = {}
     tardiness_terms = []
     missed_otif_terms = []
@@ -700,11 +752,12 @@ def _solve_cp_sat(
         model.Add(comp >= due + 1).OnlyEnforceIf(missed)
         dtype = str(order["demand_type"]).upper()
         if dtype == "PRIORITY_CUSTOMER_ORDER":
-            missed_otif_terms.append((350_000 if recommendation_mode else 200_000) * missed)
+            penalty = int(round(missed_priority_penalty * (1.45 if recommendation_mode else 1.0)))
         elif dtype == "CUSTOMER_ORDER":
-            missed_otif_terms.append((140_000 if recommendation_mode else 80_000) * missed)
+            penalty = int(round(missed_customer_penalty * (1.45 if recommendation_mode else 1.0)))
         else:
-            missed_otif_terms.append((1_500 if recommendation_mode else 5_000) * missed)
+            penalty = int(round(missed_stock_penalty * (0.30 if recommendation_mode else 1.0)))
+        missed_otif_terms.append(max(0, penalty) * missed)
 
     stability_terms = []
     if previous_schedule is not None and replan_time is not None and not previous_schedule.empty:
@@ -745,7 +798,7 @@ def _solve_cp_sat(
         model.AddMaxEquality(makespan, list(completion_vars.values()))
     else:
         model.Add(makespan == 0)
-    model.Minimize(sum(missed_otif_terms) + sum(tardiness_terms) + sum(stability_terms) + makespan)
+    model.Minimize(sum(missed_otif_terms) + sum(tardiness_terms) + sum(stability_terms) + int(makespan_weight) * makespan)
 
     solver = cp_model.CpSolver()
     if int(time_limit_seconds) > 0:

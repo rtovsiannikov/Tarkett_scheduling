@@ -372,20 +372,20 @@ def _build_downtime_and_scenarios(start: pd.Timestamp) -> tuple[pd.DataFrame, pd
     downtime = pd.DataFrame(
         [
             {
-                "scenario_name": "press_downtime_3h",
+                "scenario_name": "press_stop_5min",
                 "machine_id": "PRESS",
                 "event_start": start.normalize() + pd.Timedelta(days=2, hours=10),
-                "estimated_duration_minutes": 180,
-                "actual_duration_minutes": 210,
-                "reason": "Press hydraulic issue",
+                "estimated_duration_minutes": 5,
+                "actual_duration_minutes": 5,
+                "reason": "Short press stop",
             },
             {
                 "scenario_name": "lack_oee_loss",
                 "machine_id": "LACK",
                 "event_start": start.normalize() + pd.Timedelta(days=3, hours=8),
-                "estimated_duration_minutes": 120,
-                "actual_duration_minutes": 120,
-                "reason": "Lack line slowdown / maintenance",
+                "estimated_duration_minutes": 5,
+                "actual_duration_minutes": 5,
+                "reason": "Short lack stop / minor maintenance",
             },
         ]
     )
@@ -393,14 +393,14 @@ def _build_downtime_and_scenarios(start: pd.Timestamp) -> tuple[pd.DataFrame, pd
         [
             {"scenario_name": "baseline_no_disruption", "description": "Baseline weekly plan", "event_start": pd.NaT, "replan_time": pd.NaT},
             {
-                "scenario_name": "press_downtime_3h",
-                "description": "Press downtime for rescheduling demo",
+                "scenario_name": "press_stop_5min",
+                "description": "Press 5-minute stop for rescheduling demo",
                 "event_start": start.normalize() + pd.Timedelta(days=2, hours=10),
                 "replan_time": start.normalize() + pd.Timedelta(days=2, hours=10),
             },
             {
                 "scenario_name": "lack_oee_loss",
-                "description": "Lack line disruption demo",
+                "description": "Lack 5-minute stop demo",
                 "event_start": start.normalize() + pd.Timedelta(days=3, hours=8),
                 "replan_time": start.normalize() + pd.Timedelta(days=3, hours=8),
             },

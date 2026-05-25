@@ -272,6 +272,13 @@ class MainWindow(QMainWindow):
         data_layout = QVBoxLayout(data_group)
         self.bundle_path_edit = QLineEdit()
         self.bundle_path_edit.setReadOnly(True)
+        self.data_table_selector = QComboBox()
+        for key, filename in DATA_FILES.items():
+            self.data_table_selector.addItem(filename, key)
+        self.data_table_selector.currentIndexChanged.connect(self.select_data_table_from_combo)
+        btn_open_editor = QPushButton("Open data editor")
+        btn_open_editor.setObjectName("SecondaryButton")
+        btn_open_editor.clicked.connect(self.open_data_editor)
         btn_generate = QPushButton("Generate Tarkett-like demo data")
         btn_generate.setObjectName("SuccessButton")
         btn_generate.clicked.connect(self.generate_demo_data)
@@ -289,6 +296,9 @@ class MainWindow(QMainWindow):
         btn_delete_rows.clicked.connect(self.delete_selected_data_rows)
         data_layout.addWidget(QLabel("Bundle folder"))
         data_layout.addWidget(self.bundle_path_edit)
+        data_layout.addWidget(QLabel("Table to edit"))
+        data_layout.addWidget(self.data_table_selector)
+        data_layout.addWidget(btn_open_editor)
         data_layout.addWidget(btn_generate)
         data_layout.addWidget(btn_load)
         data_layout.addWidget(btn_save)
@@ -317,12 +327,49 @@ class MainWindow(QMainWindow):
         self.sequence_penalty = QSpinBox()
         self.sequence_penalty.setRange(0, 1000000)
         self.sequence_penalty.setValue(2500)
+
+        self.missed_priority_penalty = QSpinBox()
+        self.missed_priority_penalty.setRange(0, 10000000)
+        self.missed_priority_penalty.setValue(200000)
+        self.missed_customer_penalty = QSpinBox()
+        self.missed_customer_penalty.setRange(0, 10000000)
+        self.missed_customer_penalty.setValue(80000)
+        self.missed_stock_penalty = QSpinBox()
+        self.missed_stock_penalty.setRange(0, 10000000)
+        self.missed_stock_penalty.setValue(5000)
+        self.priority_tardiness_weight = QSpinBox()
+        self.priority_tardiness_weight.setRange(0, 1000000)
+        self.priority_tardiness_weight.setValue(2000)
+        self.customer_tardiness_weight = QSpinBox()
+        self.customer_tardiness_weight.setRange(0, 1000000)
+        self.customer_tardiness_weight.setValue(450)
+        self.stock_tardiness_weight = QSpinBox()
+        self.stock_tardiness_weight.setRange(0, 1000000)
+        self.stock_tardiness_weight.setValue(80)
+        self.makespan_weight = QSpinBox()
+        self.makespan_weight.setRange(0, 1000000)
+        self.makespan_weight.setValue(1)
+
         solver_layout.addWidget(QLabel("Shift penalty/min"), 2, 0)
         solver_layout.addWidget(self.shift_penalty, 2, 1)
         solver_layout.addWidget(QLabel("Moved op penalty"), 3, 0)
         solver_layout.addWidget(self.moved_penalty, 3, 1)
         solver_layout.addWidget(QLabel("Press sequence penalty"), 4, 0)
         solver_layout.addWidget(self.sequence_penalty, 4, 1)
+        solver_layout.addWidget(QLabel("Missed PRIO MTO"), 5, 0)
+        solver_layout.addWidget(self.missed_priority_penalty, 5, 1)
+        solver_layout.addWidget(QLabel("Missed customer MTO"), 6, 0)
+        solver_layout.addWidget(self.missed_customer_penalty, 6, 1)
+        solver_layout.addWidget(QLabel("Missed MTS stock"), 7, 0)
+        solver_layout.addWidget(self.missed_stock_penalty, 7, 1)
+        solver_layout.addWidget(QLabel("PRIO tardiness/min"), 8, 0)
+        solver_layout.addWidget(self.priority_tardiness_weight, 8, 1)
+        solver_layout.addWidget(QLabel("Customer tardiness/min"), 9, 0)
+        solver_layout.addWidget(self.customer_tardiness_weight, 9, 1)
+        solver_layout.addWidget(QLabel("MTS tardiness/min"), 10, 0)
+        solver_layout.addWidget(self.stock_tardiness_weight, 10, 1)
+        solver_layout.addWidget(QLabel("Makespan weight"), 11, 0)
+        solver_layout.addWidget(self.makespan_weight, 11, 1)
 
         scenario_group = QGroupBox("Downtime / what-if scenario")
         scenario_layout = QVBoxLayout(scenario_group)
@@ -331,10 +378,31 @@ class MainWindow(QMainWindow):
         self.scenario_details = QTextEdit()
         self.scenario_details.setReadOnly(True)
         self.scenario_details.setMinimumHeight(96)
+        self.downtime_machine_combo = QComboBox()
+        self.downtime_start_edit = QLineEdit()
+        self.downtime_start_edit.setPlaceholderText("YYYY-MM-DD HH:MM:SS")
+        self.downtime_duration = QSpinBox()
+        self.downtime_duration.setRange(1, 24 * 60)
+        self.downtime_duration.setValue(5)
+        self.downtime_duration.setSuffix(" min")
+        self.downtime_reason_edit = QLineEdit()
+        self.downtime_reason_edit.setPlaceholderText("Reason, e.g. short press stop")
+        btn_apply_downtime = QPushButton("Apply downtime edit to table")
+        btn_apply_downtime.setObjectName("WarningButton")
+        btn_apply_downtime.clicked.connect(self.apply_inline_downtime_edit)
         scenario_layout.addWidget(QLabel("Selected scenario"))
         scenario_layout.addWidget(self.scenario_combo)
         scenario_layout.addWidget(self.scenario_details)
-        edit_hint = QLabel("Edit scenarios.csv / downtime_events.csv in Data editor, save, then reload/solve.")
+        scenario_layout.addWidget(QLabel("Machine"))
+        scenario_layout.addWidget(self.downtime_machine_combo)
+        scenario_layout.addWidget(QLabel("Start time"))
+        scenario_layout.addWidget(self.downtime_start_edit)
+        scenario_layout.addWidget(QLabel("Downtime duration"))
+        scenario_layout.addWidget(self.downtime_duration)
+        scenario_layout.addWidget(QLabel("Reason"))
+        scenario_layout.addWidget(self.downtime_reason_edit)
+        scenario_layout.addWidget(btn_apply_downtime)
+        edit_hint = QLabel("Default demo scenarios are 5-minute stops. Edit here or in Data editor, save, then solve.")
         edit_hint.setWordWrap(True)
         edit_hint.setStyleSheet("color:#64748b; font-size: 11px;")
         scenario_layout.addWidget(edit_hint)
@@ -414,12 +482,42 @@ class MainWindow(QMainWindow):
         layout.addStretch(1)
         return panel
 
+    def _build_graph_toolbar(self) -> QWidget:
+        group = QGroupBox("Graph view controls")
+        layout = QHBoxLayout(group)
+        layout.setContentsMargins(10, 8, 10, 8)
+
+        def add_button(text: str, callback) -> None:
+            btn = QPushButton(text)
+            btn.setObjectName("SecondaryButton")
+            btn.clicked.connect(callback)
+            layout.addWidget(btn)
+
+        layout.addWidget(QLabel("Color:"))
+        add_button("Orders", lambda: self.set_graph_color_by("order_id"))
+        add_button("Products", lambda: self.set_graph_color_by("product_id"))
+        add_button("Families", lambda: self.set_graph_color_by("product_family"))
+        add_button("Demand type", lambda: self.set_graph_color_by("demand_type"))
+        add_button("Priority", lambda: self.set_graph_color_by("priority"))
+        layout.addSpacing(10)
+        add_button("Labels on/off", lambda: self.toggle_graph_checkbox(self.show_labels_check))
+        add_button("Deadlines on/off", lambda: self.toggle_graph_checkbox(self.show_due_check))
+        add_button("Setup on/off", lambda: self.toggle_graph_checkbox(self.show_setup_check))
+        add_button("Downtime on/off", lambda: self.toggle_graph_checkbox(self.show_downtime_check))
+        layout.addSpacing(10)
+        add_button("All machines", lambda: self.set_machine_filter(""))
+        add_button("Press only", lambda: self.set_machine_filter("PRESS"))
+        add_button("Pack only", lambda: self.set_machine_filter("PACK"))
+        layout.addStretch(1)
+        return group
+
     def _build_main_area(self) -> QWidget:
         area = QWidget()
         layout = QVBoxLayout(area)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
         layout.addWidget(self.kpi_panel)
+        layout.addWidget(self._build_graph_toolbar())
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
@@ -452,6 +550,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
         self.data_tabs = QTabWidget()
+        self.data_tabs.currentChanged.connect(self.sync_data_selector_from_tabs)
         self.data_tables: Dict[str, QTableView] = {}
         for key, model in self.data_models.items():
             table = self._table(model, editable=True)
@@ -476,7 +575,7 @@ class MainWindow(QMainWindow):
         view.setAlternatingRowColors(True)
         view.setSelectionBehavior(QAbstractItemView.SelectRows)
         if editable:
-            view.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked | QAbstractItemView.EditKeyPressed)
+            view.setEditTriggers(QAbstractItemView.AllEditTriggers)
         view.horizontalHeader().setStretchLastSection(False)
         view.resizeColumnsToContents()
         return view
@@ -567,6 +666,7 @@ class MainWindow(QMainWindow):
                 self.data_models[key].set_dataframe(frame)
             self.batch_model.set_dataframe(build_batches(planning_bundle))
             self.downtime_events = raw_bundle.downtime_events.copy()
+            self._populate_downtime_machine_combo(raw_bundle)
             self._populate_scenarios(raw_bundle)
             for table in list(self.data_tables.values()) + [self.batch_table]:
                 table.resizeColumnsToContents()
@@ -587,8 +687,10 @@ class MainWindow(QMainWindow):
             self.scenario_combo.addItem(name)
         if current and current in names:
             self.scenario_combo.setCurrentText(current)
-        elif "press_downtime_3h" in names:
-            self.scenario_combo.setCurrentText("press_downtime_3h")
+        else:
+            non_baseline = [n for n in names if n != "baseline_no_disruption"]
+            if non_baseline:
+                self.scenario_combo.setCurrentText(non_baseline[0])
         self.scenario_combo.blockSignals(False)
         self.update_scenario_details(self.scenario_combo.currentText())
 
@@ -616,24 +718,66 @@ class MainWindow(QMainWindow):
                         f"actual={row.get('actual_duration_minutes', '')} min, reason={row.get('reason', '')}"
                     )
         lines.append("")
-        lines.append("Edit this in Data editor → scenarios.csv / downtime_events.csv.")
+        lines.append("Edit this here or in Data editor → scenarios.csv / downtime_events.csv.")
         self.scenario_details.setPlainText("\n".join(lines))
+        self._sync_inline_downtime_fields(str(scenario_name))
 
     def save_edited_bundle(self) -> None:
         if self.bundle_dir is None:
             QMessageBox.information(self, "No bundle", "Generate or load a bundle first.")
             return
         try:
-            for key, filename in DATA_FILES.items():
-                df = self.data_models[key].dataframe()
-                df.to_csv(self.bundle_dir / filename, index=False)
-                self.data_models[key].clear_modified()
-            self._load_preview()
+            self._save_edited_bundle_to_disk(reload_after=True)
             self._log(f"Saved edited CSV bundle: {self.bundle_dir.resolve()}")
             QMessageBox.information(self, "Saved", "Edited CSV tables were saved. Solve again to use the new data.")
         except Exception as exc:
             QMessageBox.critical(self, "Save error", str(exc))
             self._log(f"Save error: {exc}")
+
+    def _has_modified_data(self) -> bool:
+        return any(model.is_modified() for model in self.data_models.values())
+
+    def _save_edited_bundle_to_disk(self, *, reload_after: bool = False) -> None:
+        if self.bundle_dir is None:
+            return
+        for key, filename in DATA_FILES.items():
+            df = self.data_models[key].dataframe()
+            df.to_csv(self.bundle_dir / filename, index=False)
+            self.data_models[key].clear_modified()
+        if reload_after:
+            self._load_preview()
+
+    def _ensure_edits_saved_before_solve(self) -> None:
+        if self.bundle_dir is not None and self._has_modified_data():
+            self._save_edited_bundle_to_disk(reload_after=False)
+            self._log("Auto-saved edited CSV tables before solving.")
+
+    def open_data_editor(self) -> None:
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == "Data editor":
+                self.tabs.setCurrentIndex(i)
+                break
+        self.select_data_table_from_combo()
+
+    def select_data_table_from_combo(self) -> None:
+        if not hasattr(self, "data_tabs") or not hasattr(self, "data_table_selector"):
+            return
+        key = self.data_table_selector.currentData()
+        keys = list(self.data_models.keys())
+        if key in keys:
+            self.data_tabs.setCurrentIndex(keys.index(key))
+
+    def sync_data_selector_from_tabs(self, index: int) -> None:
+        if not hasattr(self, "data_table_selector"):
+            return
+        keys = list(self.data_models.keys())
+        if 0 <= index < len(keys):
+            key = keys[index]
+            combo_index = self.data_table_selector.findData(key)
+            if combo_index >= 0 and self.data_table_selector.currentIndex() != combo_index:
+                self.data_table_selector.blockSignals(True)
+                self.data_table_selector.setCurrentIndex(combo_index)
+                self.data_table_selector.blockSignals(False)
 
     def add_row_to_current_data_table(self) -> None:
         key = self._current_data_key()
@@ -654,11 +798,140 @@ class MainWindow(QMainWindow):
         self._log(f"Deleted {len(rows)} selected row(s) from {DATA_FILES[key]}.")
 
     def _current_data_key(self) -> str:
+        if hasattr(self, "data_table_selector"):
+            key = self.data_table_selector.currentData()
+            if key in self.data_models:
+                return str(key)
         if not hasattr(self, "data_tabs"):
             return ""
         idx = self.data_tabs.currentIndex()
         keys = list(self.data_models.keys())
         return keys[idx] if 0 <= idx < len(keys) else ""
+
+    def set_graph_color_by(self, value: str) -> None:
+        if hasattr(self, "color_by_combo"):
+            self.color_by_combo.setCurrentText(value)
+        self.update_gantt_plots()
+
+    def toggle_graph_checkbox(self, checkbox: QCheckBox) -> None:
+        checkbox.setChecked(not checkbox.isChecked())
+        self.update_gantt_plots()
+
+    def set_machine_filter(self, value: str) -> None:
+        if hasattr(self, "machine_filter_edit"):
+            self.machine_filter_edit.setText(value)
+        self.update_gantt_plots()
+
+    def _selected_disruption_scenario(self) -> str:
+        current = self.scenario_combo.currentText().strip() if hasattr(self, "scenario_combo") else ""
+        if current and current != "baseline_no_disruption":
+            return current
+        for i in range(self.scenario_combo.count()):
+            text = self.scenario_combo.itemText(i)
+            if text and text != "baseline_no_disruption":
+                return text
+        return current or "baseline_no_disruption"
+
+    def _populate_downtime_machine_combo(self, bundle) -> None:
+        if not hasattr(self, "downtime_machine_combo"):
+            return
+        current = self.downtime_machine_combo.currentText()
+        machines: list[str] = []
+        if not bundle.work_centers.empty and "work_center_id" in bundle.work_centers.columns:
+            machines.extend(bundle.work_centers["work_center_id"].dropna().astype(str).tolist())
+        if not bundle.downtime_events.empty and "machine_id" in bundle.downtime_events.columns:
+            machines.extend(bundle.downtime_events["machine_id"].dropna().astype(str).tolist())
+        machines = list(dict.fromkeys(machines))
+        self.downtime_machine_combo.blockSignals(True)
+        self.downtime_machine_combo.clear()
+        self.downtime_machine_combo.addItems(machines or ["PRESS", "LACK", "PACK"])
+        if current and current in machines:
+            self.downtime_machine_combo.setCurrentText(current)
+        self.downtime_machine_combo.blockSignals(False)
+
+    def _sync_inline_downtime_fields(self, scenario_name: str) -> None:
+        if not hasattr(self, "downtime_start_edit"):
+            return
+        downtime = self.downtime_model.dataframe()
+        if downtime.empty or "scenario_name" not in downtime.columns:
+            return
+        matches = downtime[downtime["scenario_name"].astype(str) == str(scenario_name)]
+        if matches.empty:
+            return
+        row = matches.iloc[0]
+        machine = str(row.get("machine_id", "PRESS"))
+        if machine and self.downtime_machine_combo.findText(machine) < 0:
+            self.downtime_machine_combo.addItem(machine)
+        self.downtime_machine_combo.setCurrentText(machine)
+        start = pd.to_datetime(row.get("event_start", ""), errors="coerce")
+        self.downtime_start_edit.setText("" if pd.isna(start) else start.strftime("%Y-%m-%d %H:%M:%S"))
+        raw_duration = row.get("actual_duration_minutes", row.get("estimated_duration_minutes", 5))
+        if pd.isna(raw_duration) or int(float(raw_duration)) <= 0:
+            raw_duration = row.get("estimated_duration_minutes", 5)
+        self.downtime_duration.setValue(max(1, int(float(raw_duration))))
+        self.downtime_reason_edit.setText(str(row.get("reason", "")))
+
+    def apply_inline_downtime_edit(self) -> None:
+        scenario_name = self.scenario_combo.currentText().strip() or "press_stop_5min"
+        start = pd.to_datetime(self.downtime_start_edit.text().strip(), errors="coerce")
+        if pd.isna(start):
+            QMessageBox.warning(self, "Invalid downtime start", "Use a date/time like 2026-05-27 10:00:00.")
+            return
+        machine = self.downtime_machine_combo.currentText().strip() or "PRESS"
+        duration = int(self.downtime_duration.value())
+        reason = self.downtime_reason_edit.text().strip() or "Short machine stop"
+        downtime = self.downtime_model.dataframe()
+        cols = ["scenario_name", "machine_id", "event_start", "estimated_duration_minutes", "actual_duration_minutes", "reason"]
+        if downtime.empty:
+            downtime = pd.DataFrame(columns=cols)
+        for col in cols:
+            if col not in downtime.columns:
+                downtime[col] = pd.NA
+        mask = downtime["scenario_name"].astype(str) == scenario_name
+        row_data = {
+            "scenario_name": scenario_name,
+            "machine_id": machine,
+            "event_start": start,
+            "estimated_duration_minutes": duration,
+            "actual_duration_minutes": duration,
+            "reason": reason,
+        }
+        if mask.any():
+            first_idx = downtime.index[mask][0]
+            for col, value in row_data.items():
+                downtime.at[first_idx, col] = value
+        else:
+            downtime = pd.concat([downtime, pd.DataFrame([row_data])], ignore_index=True)
+        self.downtime_model.set_dataframe(downtime)
+        self.downtime_model.mark_modified(True)
+
+        scenarios = self.scenarios_model.dataframe()
+        scenario_cols = ["scenario_name", "description", "event_start", "replan_time"]
+        if scenarios.empty:
+            scenarios = pd.DataFrame(columns=scenario_cols)
+        for col in scenario_cols:
+            if col not in scenarios.columns:
+                scenarios[col] = pd.NA
+        smask = scenarios["scenario_name"].astype(str) == scenario_name
+        if smask.any():
+            idx = scenarios.index[smask][0]
+            scenarios.at[idx, "event_start"] = start
+            scenarios.at[idx, "replan_time"] = start
+            if not str(scenarios.at[idx, "description"] or "").strip():
+                scenarios.at[idx, "description"] = f"{machine} {duration}-minute stop"
+        else:
+            scenarios = pd.concat([scenarios, pd.DataFrame([{
+                "scenario_name": scenario_name,
+                "description": f"{machine} {duration}-minute stop",
+                "event_start": start,
+                "replan_time": start,
+            }])], ignore_index=True)
+        self.scenarios_model.set_dataframe(scenarios)
+        self.scenarios_model.mark_modified(True)
+        self._populate_scenarios(type("BundlePreview", (), {"scenarios": scenarios, "downtime_events": downtime})())
+        self.scenario_combo.setCurrentText(scenario_name)
+        self.update_scenario_details(scenario_name)
+        self._log(f"Applied downtime edit: {scenario_name}, {machine}, {duration} min. It will be auto-saved before solving.")
 
     def _solve_kwargs(self) -> Dict[str, int]:
         return {
@@ -666,6 +939,13 @@ class MainWindow(QMainWindow):
             "stability_shift_penalty_per_minute": int(self.shift_penalty.value()),
             "stability_moved_penalty": int(self.moved_penalty.value()),
             "order_sequence_penalty": int(self.sequence_penalty.value()),
+            "missed_priority_penalty": int(self.missed_priority_penalty.value()),
+            "missed_customer_penalty": int(self.missed_customer_penalty.value()),
+            "missed_stock_penalty": int(self.missed_stock_penalty.value()),
+            "priority_tardiness_weight": int(self.priority_tardiness_weight.value()),
+            "customer_tardiness_weight": int(self.customer_tardiness_weight.value()),
+            "stock_tardiness_weight": int(self.stock_tardiness_weight.value()),
+            "makespan_weight": int(self.makespan_weight.value()),
         }
 
     def solve_baseline(self) -> None:
@@ -674,6 +954,7 @@ class MainWindow(QMainWindow):
         if self.bundle_dir is None:
             return
         try:
+            self._ensure_edits_saved_before_solve()
             self._busy("Solving baseline")
             self.results["baseline"] = solve_schedule(
                 self.bundle_dir,
@@ -695,10 +976,9 @@ class MainWindow(QMainWindow):
             self.solve_baseline()
         if self.bundle_dir is None or self.results["baseline"] is None:
             return
-        scenario = self.scenario_combo.currentText().strip() or "press_downtime_3h"
-        if scenario == "baseline_no_disruption":
-            scenario = "press_downtime_3h"
+        scenario = self._selected_disruption_scenario()
         try:
+            self._ensure_edits_saved_before_solve()
             self._busy("Running rescheduling")
             baseline = self.results["baseline"]
             self.results["reschedule"] = solve_schedule(
@@ -728,9 +1008,10 @@ class MainWindow(QMainWindow):
         previous = None
         base = self.results.get("reschedule") or self.results.get("baseline")
         if self.results.get("reschedule") is not None:
-            scenario = self.scenario_combo.currentText().strip() or "press_downtime_3h"
+            scenario = self._selected_disruption_scenario()
             previous = self.results["baseline"].schedule if self.results.get("baseline") is not None else None
         try:
+            self._ensure_edits_saved_before_solve()
             self._busy("Solving with recommendations")
             self.results["recommendation"] = solve_schedule(
                 self.bundle_dir,
@@ -843,7 +1124,8 @@ class MainWindow(QMainWindow):
     def show_legend(self) -> None:
         result = self.results.get(self.active_result_key) or self.results.get("recommendation") or self.results.get("reschedule") or self.results.get("baseline")
         schedule = None if result is None else result.schedule
-        self.legend_window = OrderLegendWindow(schedule, self)
+        color_by = self.color_by_combo.currentText() if hasattr(self, "color_by_combo") else "order_id"
+        self.legend_window = OrderLegendWindow(schedule, self, color_by=color_by)
         self.legend_window.show()
 
 

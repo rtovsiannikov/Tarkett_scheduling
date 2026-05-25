@@ -8,7 +8,7 @@ def main() -> None:
     bundle_dir = generate_tarkett_like_demo_bundle(DemoConfig(output_dir="generated_demo_data/tarkett_like_demo"))
     print(f"Generated bundle: {bundle_dir}")
 
-    baseline = solve_schedule(bundle_dir, scenario_name="baseline_no_disruption", time_limit_seconds=20)
+    baseline = solve_schedule(bundle_dir, scenario_name="baseline_no_disruption", time_limit_seconds=600)
     out = save_result(baseline, Path("scheduler_outputs") / "baseline")
     print(f"Baseline status: {baseline.status}")
     print(f"Method: {baseline.metadata.get('method')}")
@@ -17,11 +17,11 @@ def main() -> None:
 
     rescheduled = solve_schedule(
         bundle_dir,
-        scenario_name="press_downtime_3h",
+        scenario_name="press_stop_5min",
         previous_schedule=baseline.schedule,
-        time_limit_seconds=20,
+        time_limit_seconds=600,
     )
-    out2 = save_result(rescheduled, Path("scheduler_outputs") / "press_downtime_3h")
+    out2 = save_result(rescheduled, Path("scheduler_outputs") / "press_stop_5min")
     print(f"Reschedule status: {rescheduled.status}")
     print(f"Method: {rescheduled.metadata.get('method')}")
     print(f"KPIs: {rescheduled.kpis}")

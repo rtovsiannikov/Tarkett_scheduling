@@ -9,18 +9,47 @@ from matplotlib.figure import Figure
 import matplotlib.dates as mdates
 
 
+# A fixed hex palette is used both by the Gantt chart and by the legend window.
+# This avoids the old bug where Matplotlib displayed bars with C0/C1/... colors
+# but the separate legend window did not know the actual colors.
+DEFAULT_PALETTE = [
+    "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+    "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+    "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
+    "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5",
+]
+
+
+def ordered_unique(values: Iterable[object]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = "—" if pd.isna(value) else str(value)
+        if text not in seen:
+            result.append(text)
+            seen.add(text)
+    return result
+
+
+def make_color_map(values: Iterable[object]) -> dict[str, str]:
+    uniques = ordered_unique(values)
+    return {value: DEFAULT_PALETTE[i % len(DEFAULT_PALETTE)] for i, value in enumerate(uniques)}
+
+
 class GanttWidget(FigureCanvas):
     """Matplotlib Gantt chart embedded into PySide6.
 
-    The x-axis now uses real datetimes instead of "hours from start", matching
-    the original project style more closely. The widget also exposes display
-    switches so the desktop UI can choose what to show on the chart.
+    The x-axis uses real datetimes, and the chart exposes display switches so
+    the desktop UI can choose exactly what to show. Colors are deterministic and
+    can be reproduced in the separate legend window.
     """
 
     def __init__(self):
         self.figure = Figure(figsize=(14, 7), tight_layout=True)
         super().__init__(self.figure)
-        self.setMinimumSize(1120, 600)
+        self.setMinimumSize(1120, 620)
+        self.last_color_by = "order_id"
+        self.last_color_map: dict[str, str] = {}
 
     def plot_schedule(
         self,
@@ -38,6 +67,8 @@ class GanttWidget(FigureCanvas):
     ) -> None:
         self.figure.clear()
         ax = self.figure.add_subplot(111)
+        self.last_color_by = color_by
+        self.last_color_map = {}
         if schedule is None or schedule.empty:
             ax.set_title("No schedule solved yet")
             ax.set_xlabel("Date / time")
@@ -47,7 +78,7 @@ class GanttWidget(FigureCanvas):
         data = schedule.copy()
         data["start_time"] = pd.to_datetime(data["start_time"])
         data["end_time"] = pd.to_datetime(data["end_time"])
-        data["due_date"] = pd.to_datetime(data["due_date"])
+        data["due_date"] = pd.to_datetime(data["due_date"], errors="coerce")
         if visible_demand_types:
             visible = {str(x).upper() for x in visible_demand_types}
             data = data[data["demand_type"].astype(str).str.upper().isin(visible)]
@@ -73,8 +104,8 @@ class GanttWidget(FigureCanvas):
 
         color_column = color_by if color_by in data.columns else "order_id"
         color_values = data[color_column].astype(str).fillna("—").tolist()
-        unique_values = list(dict.fromkeys(color_values))
-        color_map = {value: f"C{i % 10}" for i, value in enumerate(unique_values)}
+        color_map = make_color_map(color_values)
+        self.last_color_map = color_map.copy()
         hatch_map = {
             "PRIORITY_CUSTOMER_ORDER": "//",
             "CUSTOMER_ORDER": "",
@@ -93,7 +124,7 @@ class GanttWidget(FigureCanvas):
             edge = "black" if dtype == "PRIORITY_CUSTOMER_ORDER" else "#334155"
             linewidth = 1.8 if dtype == "PRIORITY_CUSTOMER_ORDER" else 0.7
             key = str(row.get(color_column, row.get("order_id", "—")))
-            color = color_map.get(key, "C0")
+            color = color_map.get(key, DEFAULT_PALETTE[0])
             ax.barh(
                 y,
                 dur_days,
@@ -102,7 +133,7 @@ class GanttWidget(FigureCanvas):
                 color=color,
                 edgecolor=edge,
                 linewidth=linewidth,
-                alpha=0.82,
+                alpha=0.84,
                 hatch=hatch_map.get(dtype, ""),
             )
             if show_setup and setup_days > 0.0008:
@@ -114,18 +145,20 @@ class GanttWidget(FigureCanvas):
                     color="white",
                     edgecolor=edge,
                     linewidth=0.4,
-                    alpha=0.55,
+                    alpha=0.58,
                 )
             duration_hours = (row["end_time"] - row["start_time"]).total_seconds() / 3600.0
             if show_labels and duration_hours > 0.28:
                 label = f"{row['order_id']}\nB{int(row.get('batch_index', 1))}/{int(row.get('batches_in_order', 1))}"
                 ax.text(start_num + dur_days / 2, y, label, va="center", ha="center", fontsize=7, color="#0f172a")
 
-        if show_due_dates:
+        if show_due_dates and "due_date" in data.columns:
             y_top = -0.70
             due_rows = data.groupby("order_id").agg({"due_date": "first", "demand_type": "first"}).reset_index()
             for _, row in due_rows.iterrows():
-                due = pd.to_datetime(row["due_date"])
+                due = pd.to_datetime(row["due_date"], errors="coerce")
+                if pd.isna(due):
+                    continue
                 x = mdates.date2num(due)
                 ax.axvline(x, linestyle="--", linewidth=0.9, alpha=0.34)
                 ax.text(x, y_top, str(row["order_id"]), rotation=90, fontsize=7, ha="right", va="bottom", alpha=0.62)
@@ -139,14 +172,15 @@ class GanttWidget(FigureCanvas):
                 if machine not in y_map:
                     continue
                 start = row["event_start"]
-                duration = float(row.get("actual_duration_minutes", row.get("estimated_duration_minutes", 0)) or 0)
+                raw_duration = row.get("actual_duration_minutes", row.get("estimated_duration_minutes", 0))
+                duration = float(0 if pd.isna(raw_duration) else raw_duration)
                 if duration <= 0:
                     continue
                 left = mdates.date2num(start)
                 width = duration / (60.0 * 24.0)
                 y = y_map[machine]
-                ax.barh(y, width, left=left, height=0.82, color="#ef4444", alpha=0.22, edgecolor="#991b1b", linewidth=1.0)
-                ax.text(left + width / 2, y + 0.46, "downtime", ha="center", va="bottom", fontsize=7, color="#991b1b")
+                ax.barh(y, width, left=left, height=0.82, color="#ef4444", alpha=0.24, edgecolor="#991b1b", linewidth=1.0)
+                ax.text(left + width / 2, y + 0.46, f"down {duration:g}m", ha="center", va="bottom", fontsize=7, color="#991b1b")
 
         ax.set_yticks(range(len(stage_order)))
         ax.set_yticklabels(stage_order)
@@ -154,14 +188,15 @@ class GanttWidget(FigureCanvas):
         ax.set_xlabel("Date / time")
         ax.set_title(title)
         ax.grid(axis="x", alpha=0.25)
-        ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=10))
-        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
-        self.figure.autofmt_xdate(rotation=25)
+        locator = mdates.AutoDateLocator(minticks=6, maxticks=12)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d\n%H:%M"))
+        self.figure.autofmt_xdate(rotation=0)
         ax.set_xlim(mdates.date2num(min_start) - 0.02, mdates.date2num(max_end) + 0.06)
         ax.text(
             0.01,
             0.01,
-            "Label: order + batch. Dashed vertical lines: deadlines. Red overlays: editable downtime scenarios. White segment: setup.",
+            "Labels: order + batch. Dashed vertical lines: deadlines. Red overlays: editable downtime. White segment: setup.",
             transform=ax.transAxes,
             fontsize=8,
             color="#475569",
