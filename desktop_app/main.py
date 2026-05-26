@@ -153,6 +153,7 @@ class SolverWorker(QObject):
         solve_kwargs: dict,
         previous_schedule=None,
         recommendation_mode: bool = False,
+        recommendation_actions=None,
     ) -> None:
         super().__init__()
         self.job_key = job_key
@@ -161,6 +162,7 @@ class SolverWorker(QObject):
         self.solve_kwargs = dict(solve_kwargs)
         self.previous_schedule = previous_schedule
         self.recommendation_mode = recommendation_mode
+        self.recommendation_actions = recommendation_actions
 
     @Slot()
     def run(self) -> None:
@@ -174,6 +176,7 @@ class SolverWorker(QObject):
                 scenario_name=self.scenario_name,
                 previous_schedule=self.previous_schedule,
                 recommendation_mode=self.recommendation_mode,
+                recommendation_actions=self.recommendation_actions,
                 **self.solve_kwargs,
             )
             self.finished.emit(self.job_key, result)
@@ -598,6 +601,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self._wrap_scrollable(self.inventory_plot), "Inventory chart")
         self.tabs.addTab(self.inventory_events_table, "Inventory events")
         self.tabs.addTab(self.recommendations_table, "Recommendations")
+        self.tabs.addTab(self.kpi_comparison_table, "KPI comparison")
         self.tabs.addTab(self._build_data_editor_tab(), "Data editor")
         self.tabs.addTab(self.kpi_text, "KPI details")
         self.tabs.addTab(self.status_text, "Solver log")
@@ -1014,6 +1018,7 @@ class MainWindow(QMainWindow):
         scenario_name: str,
         previous_schedule=None,
         recommendation_mode: bool = False,
+        recommendation_actions=None,
     ) -> None:
         if self.bundle_dir is None:
             return
@@ -1038,6 +1043,7 @@ class MainWindow(QMainWindow):
             solve_kwargs=self._solve_kwargs(),
             previous_schedule=previous_schedule,
             recommendation_mode=recommendation_mode,
+            recommendation_actions=recommendation_actions,
         )
         worker.moveToThread(thread)
 
@@ -1077,6 +1083,7 @@ class MainWindow(QMainWindow):
         }.get(job_key, "solver finished")
         self._idle(status_text)
         self._set_solve_controls_enabled(True)
+        self._update_kpi_comparison_table()
         self._log(
             f"{RESULT_TITLES.get(job_key, job_key)} solved: {result.status}; "
             f"method={result.metadata.get('method')}; time={result.solve_time_seconds:.2f}s"
@@ -1166,6 +1173,7 @@ class MainWindow(QMainWindow):
             return
 
         source_key = self._current_plan_context_for_recommendations()
+        recommendation_actions = self._selected_or_active_recommendation_actions(source_key)
 
         if source_key == "reschedule":
             reschedule_result = self.results.get("reschedule")
@@ -1181,17 +1189,18 @@ class MainWindow(QMainWindow):
             if not scenario:
                 scenario = self._selected_disruption_scenario()
             previous = self.results["baseline"].schedule
-            self._log(f"Recommendation solve source: rescheduled plan, scenario={scenario}")
+            self._log(f"Recommendation solve source: rescheduled plan, scenario={scenario}; actions={len(recommendation_actions)}")
         else:
             scenario = "baseline_no_disruption"
             previous = None
-            self._log("Recommendation solve source: baseline plan, scenario=baseline_no_disruption")
+            self._log(f"Recommendation solve source: baseline plan, scenario=baseline_no_disruption; actions={len(recommendation_actions)}")
 
         self._start_solver_job(
             job_key="recommendation",
             scenario_name=scenario,
             previous_schedule=previous,
             recommendation_mode=True,
+            recommendation_actions=recommendation_actions,
         )
 
     def _show_result(self, key: str, *, redraw_gantt: bool = False, update_tables: bool = True) -> None:
@@ -1235,6 +1244,7 @@ class MainWindow(QMainWindow):
         if result is None:
             for model in [self.batch_model, self.schedule_model, self.order_summary_model, self.inventory_events_model, self.recommendations_model]:
                 model.set_dataframe(pd.DataFrame())
+            self._update_kpi_comparison_table()
             self.kpi_panel.set_kpis({})
             self.kpi_text.setPlainText("")
             return
@@ -1317,11 +1327,20 @@ class MainWindow(QMainWindow):
                 str(schedule.get("start_time", pd.Series(dtype=object)).min()),
                 str(schedule.get("end_time", pd.Series(dtype=object)).max()),
             )
+        prev = self._previous_schedule_for_gantt(key)
+        prev_sig = (0, "", "")
+        if prev is not None and not prev.empty:
+            prev_sig = (
+                len(prev),
+                str(prev.get("start_time", pd.Series(dtype=object)).min()),
+                str(prev.get("end_time", pd.Series(dtype=object)).max()),
+            )
         return (
             key,
             id(result),
             scenario,
             span,
+            prev_sig,
             options.get("color_by"),
             bool(options.get("show_labels")),
             bool(options.get("show_due_dates")),
@@ -1360,7 +1379,8 @@ class MainWindow(QMainWindow):
         signature = self._gantt_signature(key, result, options, downtime_events)
         if not force and self._gantt_render_signature.get(key) == signature:
             return
-        widget.plot_schedule(result.schedule, title, **options)
+        previous_schedule = self._previous_schedule_for_gantt(key)
+        widget.plot_schedule(result.schedule, title, previous_schedule=previous_schedule, **options)
         self._gantt_render_signature[key] = signature
 
     def update_gantt_plots(self) -> None:
@@ -1372,6 +1392,100 @@ class MainWindow(QMainWindow):
         if key is None:
             key = self.active_result_key
         self._plot_result_gantt(key, force=True)
+    def _selected_or_active_recommendation_actions(self, source_key: str) -> pd.DataFrame:
+        """Return selected recommendation rows, or all actionable rows for the active source.
+
+        This mimics the old MVP workflow: select a recommendation/action row,
+        then run a what-if/recommended solve. If the user does not explicitly
+        select a row, all actionable recommendations from the source result are
+        applied.
+        """
+        source_result = self.results.get(source_key)
+        if source_result is None or source_result.recommendations is None:
+            return pd.DataFrame()
+        recs = source_result.recommendations.copy()
+        if recs.empty:
+            return pd.DataFrame()
+
+        selected_rows = []
+        try:
+            selection = self.recommendations_table.selectionModel()
+            if selection is not None:
+                selected_rows = sorted({idx.row() for idx in selection.selectedRows()})
+        except Exception:
+            selected_rows = []
+
+        if selected_rows and self.active_result_key == source_key:
+            selected = recs.iloc[[r for r in selected_rows if r < len(recs)]].copy()
+        else:
+            selected = recs.copy()
+
+        if "is_actionable" in selected.columns:
+            actionable = selected[selected["is_actionable"].astype(str).str.lower().isin(["true", "1", "yes"])]
+        elif "action_type" in selected.columns:
+            actionable = selected[selected["action_type"].fillna("").astype(str).str.strip() != ""]
+        else:
+            actionable = pd.DataFrame()
+        return actionable.reset_index(drop=True)
+
+    def _previous_schedule_for_gantt(self, key: str) -> pd.DataFrame | None:
+        if key in {"reschedule", "recommendation"} and self.results.get("baseline") is not None:
+            return self.results["baseline"].schedule
+        return None
+
+    def _update_kpi_comparison_table(self) -> None:
+        rows = []
+        metric_order = [
+            "otif_rate_customer",
+            "otif_rate_priority",
+            "late_orders",
+            "total_tardiness_minutes",
+            "missed_quantity_total",
+            "average_fill_rate_by_due",
+            "batches_total",
+            "makespan_hours",
+            "press_utilization_proxy",
+            "kanban_violations",
+            "finished_goods_stockout_events",
+            "raw_material_negative_events",
+        ]
+        all_metrics = []
+        for metric in metric_order:
+            if any((self.results.get(k) is not None and metric in self.results[k].kpis) for k in self.results):
+                all_metrics.append(metric)
+        for key in ["baseline", "reschedule", "recommendation"]:
+            result = self.results.get(key)
+            if result is not None:
+                for metric in result.kpis:
+                    if metric not in all_metrics:
+                        all_metrics.append(metric)
+        for metric in all_metrics:
+            row = {"metric": metric}
+            values = {}
+            for key, title in [("baseline", "Baseline"), ("reschedule", "Rescheduled"), ("recommendation", "Recommended")]:
+                result = self.results.get(key)
+                value = None if result is None else result.kpis.get(metric)
+                row[title] = value
+                values[key] = value
+            row["Rescheduled - Baseline"] = self._safe_delta(values.get("reschedule"), values.get("baseline"))
+            row["Recommended - Baseline"] = self._safe_delta(values.get("recommendation"), values.get("baseline"))
+            row["Recommended - Rescheduled"] = self._safe_delta(values.get("recommendation"), values.get("reschedule"))
+            rows.append(row)
+        self.kpi_comparison_model.set_dataframe(pd.DataFrame(rows))
+        if hasattr(self, "kpi_comparison_table"):
+            self.kpi_comparison_table.resizeColumnsToContents()
+
+    @staticmethod
+    def _safe_delta(a, b):
+        try:
+            if a is None or b is None:
+                return ""
+            if isinstance(a, str) or isinstance(b, str):
+                return ""
+            return round(float(a) - float(b), 4)
+        except Exception:
+            return ""
+
     def _format_kpis(self, result) -> str:
         lines = [f"View: {RESULT_TITLES.get(self.active_result_key, self.active_result_key)}", "", "Solver metadata", "---------------"]
         for k, v in result.metadata.items():

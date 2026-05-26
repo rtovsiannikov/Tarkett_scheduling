@@ -508,6 +508,135 @@ def _priority_weight(
     return max(0, weight)
 
 
+
+# ---------------------------------------------------------------------------
+# Recommendation actions applied before a recommendation solve
+# ---------------------------------------------------------------------------
+
+
+def _normalize_recommendation_actions(actions: Optional[pd.DataFrame | List[Dict[str, Any]]]) -> pd.DataFrame:
+    """Return only actionable recommendation rows.
+
+    The desktop UI can pass either the selected recommendation rows or all
+    actionable rows from the active result. This keeps the optimization core
+    independent of Qt while still letting recommendations modify the next solve.
+    """
+    if actions is None:
+        return pd.DataFrame()
+    if isinstance(actions, pd.DataFrame):
+        df = actions.copy()
+    else:
+        df = pd.DataFrame(list(actions))
+    if df.empty or "action_type" not in df.columns:
+        return pd.DataFrame()
+    df["action_type"] = df["action_type"].fillna("").astype(str).str.upper().str.strip()
+    return df[df["action_type"] != ""].reset_index(drop=True)
+
+
+def _apply_recommendation_actions(
+    bundle: DataBundle,
+    actions: Optional[pd.DataFrame | List[Dict[str, Any]]],
+) -> Tuple[DataBundle, List[str]]:
+    """Apply supported recommendation actions to a loaded bundle.
+
+    Currently supported hard action:
+    - EXTEND_BOTTLENECK_SHIFT / ADD_EXTRA_SHIFT_TIME: extend the selected
+      machine's working capacity by N minutes around the reference time.
+
+    Other action rows are kept as advisory metadata. Their behavioral effect is
+    already represented by recommendation_mode=True, which boosts customer MTO
+    weights and weakens MTS lateness.
+    """
+    df = _normalize_recommendation_actions(actions)
+    if df.empty:
+        return bundle, []
+
+    shifts = bundle.shifts.copy()
+    applied: List[str] = []
+    for _, row in df.iterrows():
+        action = str(row.get("action_type", "")).upper().strip()
+        if action in {"EXTEND_BOTTLENECK_SHIFT", "ADD_EXTRA_SHIFT_TIME", "ADD_OVERTIME"}:
+            machine_id = str(row.get("work_center_id", row.get("machine_id", "PRESS")) or "PRESS")
+            extra = row.get("extra_minutes", row.get("value", 60))
+            try:
+                extra_minutes = int(float(extra))
+            except Exception:
+                extra_minutes = 60
+            extra_minutes = max(5, min(extra_minutes, 12 * 60))
+            reference_time = pd.to_datetime(row.get("reference_time", None), errors="coerce")
+            shifts, description = _extend_shift_for_machine(shifts, machine_id, extra_minutes, reference_time)
+            applied.append(description)
+        else:
+            issue = str(row.get("issue", action))[:80]
+            applied.append(f"advisory:{action}:{issue}")
+
+    new_bundle = DataBundle(
+        bundle_dir=bundle.bundle_dir,
+        products=bundle.products,
+        work_centers=bundle.work_centers,
+        routes=bundle.routes,
+        orders=bundle.orders,
+        shifts=shifts,
+        inventory=bundle.inventory,
+        inventory_arrivals=bundle.inventory_arrivals,
+        bom=bundle.bom,
+        stock_policy=bundle.stock_policy,
+        forecast_demand=bundle.forecast_demand,
+        downtime_events=bundle.downtime_events,
+        scenarios=bundle.scenarios,
+        setup_matrix=bundle.setup_matrix,
+    )
+    return new_bundle, applied
+
+
+def _extend_shift_for_machine(
+    shifts: pd.DataFrame,
+    machine_id: str,
+    extra_minutes: int,
+    reference_time: Optional[pd.Timestamp],
+) -> Tuple[pd.DataFrame, str]:
+    """Extend the most relevant working shift for a machine by extra minutes."""
+    shifts = shifts.copy()
+    if shifts.empty:
+        start = pd.Timestamp("2026-05-25 06:00") if reference_time is None or pd.isna(reference_time) else pd.to_datetime(reference_time)
+        new_row = {
+            "shift_id": f"REC_EXTRA_{machine_id}_001",
+            "machine_id": machine_id,
+            "shift_start": start,
+            "shift_end": start + pd.Timedelta(minutes=int(extra_minutes)),
+            "is_working": True,
+        }
+        return pd.DataFrame([new_row]), f"extended {machine_id} by {extra_minutes} min with a new synthetic shift"
+
+    if "is_working" in shifts.columns:
+        working_mask = shifts["is_working"] == True
+    else:
+        working_mask = pd.Series([True] * len(shifts), index=shifts.index)
+    mask = (shifts["machine_id"].astype(str) == str(machine_id)) & working_mask
+    candidates = shifts[mask].copy()
+    if candidates.empty:
+        candidates = shifts[working_mask].copy()
+    if candidates.empty:
+        candidates = shifts.copy()
+
+    candidates["shift_start"] = pd.to_datetime(candidates["shift_start"], errors="coerce")
+    candidates["shift_end"] = pd.to_datetime(candidates["shift_end"], errors="coerce")
+    if reference_time is not None and not pd.isna(reference_time):
+        ref = pd.to_datetime(reference_time)
+        containing = candidates[(candidates["shift_start"] <= ref) & (candidates["shift_end"] >= ref)]
+        if not containing.empty:
+            idx = containing.sort_values("shift_end").index[-1]
+        else:
+            before = candidates[candidates["shift_start"] <= ref]
+            idx = (before if not before.empty else candidates).sort_values("shift_end").index[-1]
+    else:
+        idx = candidates.sort_values("shift_end").index[-1]
+
+    old_end = pd.to_datetime(shifts.at[idx, "shift_end"])
+    shifts.at[idx, "shift_end"] = old_end + pd.Timedelta(minutes=int(extra_minutes))
+    return shifts, f"extended {machine_id} shift ending {old_end} by {extra_minutes} min"
+
+
 # ---------------------------------------------------------------------------
 # CP-SAT solver and greedy fallback
 # ---------------------------------------------------------------------------
@@ -523,6 +652,7 @@ def solve_schedule(
     auto_generate_mts_orders: bool = True,
     force_greedy: bool = False,
     recommendation_mode: bool = False,
+    recommendation_actions: Optional[pd.DataFrame | List[Dict[str, Any]]] = None,
     stability_shift_penalty_per_minute: int = 3,
     stability_moved_penalty: int = 0,
     order_sequence_penalty: int = 0,
@@ -537,6 +667,7 @@ def solve_schedule(
     """Solve baseline or rescheduling scenario."""
     t0 = time.time()
     bundle = load_data_bundle(bundle_dir, auto_generate_mts_orders=auto_generate_mts_orders)
+    bundle, applied_recommendation_actions = _apply_recommendation_actions(bundle, recommendation_actions)
     operations = build_operations(bundle)
     if replan_time is None:
         replan_time = _scenario_replan_time(bundle, scenario_name)
@@ -612,6 +743,8 @@ def solve_schedule(
             "customer_tardiness_weight": customer_tardiness_weight,
             "stock_tardiness_weight": stock_tardiness_weight,
             "makespan_weight": makespan_weight,
+            "applied_recommendation_actions": len(applied_recommendation_actions),
+            "applied_recommendation_actions_detail": "; ".join(applied_recommendation_actions),
             "replan_time": None if replan_time is None else str(replan_time),
             "bundle_dir": str(bundle.bundle_dir),
             "operations": len(operations),
@@ -629,6 +762,7 @@ def _solve_cp_sat(
     replan_time: Optional[pd.Timestamp],
     time_limit_seconds: int,
     recommendation_mode: bool = False,
+    recommendation_actions: Optional[pd.DataFrame | List[Dict[str, Any]]] = None,
     stability_shift_penalty_per_minute: int = 3,
     stability_moved_penalty: int = 0,
     order_sequence_penalty: int = 0,
@@ -1302,18 +1436,52 @@ def generate_recommendations(
     kpis: Dict[str, Any],
 ) -> pd.DataFrame:
     rows: List[Dict[str, Any]] = []
-    def add(priority: str, area: str, issue: str, recommendation: str, evidence: str) -> None:
-        rows.append({"priority": priority, "area": area, "issue": issue, "recommendation": recommendation, "evidence": evidence})
 
+    def add(
+        priority: str,
+        area: str,
+        issue: str,
+        recommendation: str,
+        evidence: str,
+        *,
+        action_type: str = "",
+        work_center_id: str = "",
+        extra_minutes: int = 0,
+        reference_time: Any = "",
+        action_parameters: str = "",
+    ) -> None:
+        rows.append(
+            {
+                "priority": priority,
+                "area": area,
+                "issue": issue,
+                "recommendation": recommendation,
+                "evidence": evidence,
+                "action_type": action_type,
+                "work_center_id": work_center_id,
+                "extra_minutes": int(extra_minutes or 0),
+                "reference_time": "" if pd.isna(reference_time) else str(reference_time),
+                "action_parameters": action_parameters,
+                "is_actionable": bool(action_type),
+            }
+        )
+
+    first_late_due = ""
     if not order_summary.empty:
+        late_any = order_summary[~order_summary["on_time"]].copy()
+        if not late_any.empty and "due_date" in late_any.columns:
+            first_late_due = pd.to_datetime(late_any["due_date"], errors="coerce").min()
+
         late_priority = order_summary[(order_summary["demand_type"] == "PRIORITY_CUSTOMER_ORDER") & (~order_summary["on_time"])]
         if not late_priority.empty:
             add(
                 "HIGH",
                 "OTIF / priority orders",
                 f"{len(late_priority)} priority customer order(s) are late.",
-                "Move priority MTO orders before normal MTO and MTS orders; consider extra Press capacity on the affected day.",
+                "Protect priority MTO orders: move them before normal MTO/MTS and run the recommendation solve with stronger MTO weights.",
                 ", ".join(late_priority["order_id"].astype(str).head(5).tolist()),
+                action_type="BOOST_MTO_DEFER_MTS",
+                action_parameters="priority_mto_weight_boost=1.45; stock_weight_multiplier=0.30",
             )
         late_customer = order_summary[(order_summary["demand_type"] == "CUSTOMER_ORDER") & (~order_summary["on_time"])]
         if not late_customer.empty:
@@ -1321,8 +1489,10 @@ def generate_recommendations(
                 "MEDIUM",
                 "OTIF / customer orders",
                 f"{len(late_customer)} normal customer order(s) miss due date.",
-                "Check whether MTS replenishment can be moved later or split after customer-critical orders.",
+                "Move MTS replenishment later and reserve more early capacity for customer orders during the recommendation solve.",
                 ", ".join(late_customer["order_id"].astype(str).head(5).tolist()),
+                action_type="BOOST_MTO_DEFER_MTS",
+                action_parameters="customer_weight_boost=1.45; stock_weight_multiplier=0.30",
             )
         partial = order_summary[(order_summary["fill_rate_by_due"] > 0) & (order_summary["fill_rate_by_due"] < 1)]
         if not partial.empty:
@@ -1331,11 +1501,51 @@ def generate_recommendations(
                 "MEDIUM",
                 "Batch split / partial fill",
                 f"{len(partial)} order(s) are partially filled by due date.",
-                "Use the Batch split tab to see which lots reached PACK before the deadline; consider moving only the missing batches earlier instead of replanning the whole order.",
+                "Use the Batch split tab to identify the missing lots; the recommendation solve will prioritize missing MTO batches over MTS work.",
                 sample.to_string(index=False),
+                action_type="BOOST_MTO_DEFER_MTS",
+                action_parameters="prioritize_missing_customer_batches=True",
             )
 
     if not schedule.empty:
+        # General bottleneck detection: do not hard-code only PRESS. PRESS will
+        # usually win in this demo, but the same rule works if the user edits the
+        # factory and another machine becomes the drum.
+        utilization_rows: List[Tuple[str, float]] = []
+        for machine_id in sorted(schedule["machine_id"].astype(str).dropna().unique()):
+            util = _utilization_proxy(bundle, schedule, machine_id)
+            if util is not None:
+                utilization_rows.append((machine_id, float(util)))
+        bottleneck_id = "PRESS"
+        bottleneck_util = kpis.get("press_utilization_proxy")
+        if utilization_rows:
+            bottleneck_id, bottleneck_util = max(utilization_rows, key=lambda x: x[1])
+
+        if bottleneck_id:
+            machine_ops = schedule[schedule["machine_id"].astype(str) == bottleneck_id]
+            machine_work = int(machine_ops["duration_minutes"].sum()) if not machine_ops.empty else 0
+            total_tardiness = int(kpis.get("total_tardiness_minutes", 0) or 0)
+            late_orders = int(kpis.get("late_orders", 0) or 0)
+            suggested_extra = 60
+            if late_orders > 0:
+                suggested_extra = int(max(15, min(240, math.ceil((total_tardiness / max(1, late_orders)) / 5) * 5)))
+            ref_time = first_late_due
+            if (ref_time == "" or pd.isna(ref_time)) and not machine_ops.empty:
+                ref_time = pd.to_datetime(machine_ops["end_time"], errors="coerce").max()
+            if bottleneck_util is not None and (float(bottleneck_util) > 0.78 or late_orders > 0):
+                add(
+                    "HIGH" if late_orders > 0 or float(bottleneck_util) > 0.90 else "MEDIUM",
+                    "Bottleneck capacity",
+                    f"{bottleneck_id} is the current bottleneck/drum resource.",
+                    f"Add {suggested_extra} minutes of extra working time to {bottleneck_id} and re-run the solver. This is applied as a temporary shift extension in the recommendation solve.",
+                    f"{bottleneck_id} utilization proxy={float(bottleneck_util):.1%}; work={machine_work} min; late_orders={late_orders}; total_tardiness={total_tardiness} min",
+                    action_type="EXTEND_BOTTLENECK_SHIFT",
+                    work_center_id=bottleneck_id,
+                    extra_minutes=suggested_extra,
+                    reference_time=ref_time,
+                    action_parameters="extend_selected_machine_shift_end",
+                )
+
         press_ops = schedule[schedule["machine_id"].astype(str) == "PRESS"]
         if not press_ops.empty:
             press_setup = int(press_ops["setup_minutes"].sum())
@@ -1347,15 +1557,9 @@ def generate_recommendations(
                     "Setup share on Press is high for the current sequence.",
                     "Group similar product families near the Press bottleneck to reduce tooling/layer-recipe changes.",
                     f"Press setup={press_setup} min, total Press time={press_work} min",
-                )
-            util = kpis.get("press_utilization_proxy")
-            if util is not None and util > 0.85:
-                add(
-                    "HIGH",
-                    "Bottleneck capacity",
-                    "Press utilization proxy is above 85%.",
-                    "Use Press as the main planning drum: reserve capacity for priority MTO, and move stock replenishment to lower-load windows.",
-                    f"Press utilization proxy={util:.1%}",
+                    action_type="GROUP_FAMILY_ON_BOTTLENECK",
+                    work_center_id="PRESS",
+                    action_parameters="advisory:group_product_family_on_press",
                 )
 
     if not inventory_projection.empty:
@@ -1386,6 +1590,8 @@ def generate_recommendations(
                 "Finished-goods stock falls below safety stock.",
                 "Increase or advance MTS replenishment order, unless it conflicts with priority customer orders.",
                 ", ".join(fg_bad["item_id"].astype(str).drop_duplicates().head(5).tolist()),
+                action_type="BOOST_MTO_DEFER_MTS",
+                action_parameters="balance_mts_replenishment_after_customer_otif",
             )
 
     if not rows:
