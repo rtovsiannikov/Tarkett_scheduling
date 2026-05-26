@@ -1137,6 +1137,23 @@ class MainWindow(QMainWindow):
             previous_schedule=baseline.schedule,
         )
 
+    def _current_plan_context_for_recommendations(self) -> str:
+        """Return the plan tab that should be used as the recommendation source.
+
+        Recommendations are context-sensitive. If the user is looking at
+        Baseline Plan, the recommended solve must be a clean baseline
+        recommendation without downtime. If the user is looking at
+        Rescheduled Plan, the recommended solve should use the same downtime
+        scenario as that rescheduling result.
+        """
+        if hasattr(self, "tabs"):
+            tab_key = self._result_key_for_tab_index(self.tabs.currentIndex())
+            if tab_key in {"baseline", "reschedule"}:
+                return tab_key
+        if self.active_result_key in {"baseline", "reschedule"}:
+            return self.active_result_key
+        return "baseline"
+
     def solve_with_recommendations(self) -> None:
         if self.results["baseline"] is None:
             QMessageBox.information(
@@ -1148,11 +1165,27 @@ class MainWindow(QMainWindow):
         if self.bundle_dir is None:
             return
 
-        scenario = "baseline_no_disruption"
-        previous = None
-        if self.results.get("reschedule") is not None:
-            scenario = self._selected_disruption_scenario()
+        source_key = self._current_plan_context_for_recommendations()
+
+        if source_key == "reschedule":
+            reschedule_result = self.results.get("reschedule")
+            if reschedule_result is None:
+                QMessageBox.information(
+                    self,
+                    "Rescheduling required",
+                    "The Rescheduled Plan tab is selected, but no rescheduling result exists yet. "
+                    "Run downtime rescheduling first, or switch to Baseline Plan to solve clean baseline recommendations.",
+                )
+                return
+            scenario = str(reschedule_result.metadata.get("scenario_name", "") or self._selected_disruption_scenario())
+            if not scenario:
+                scenario = self._selected_disruption_scenario()
             previous = self.results["baseline"].schedule
+            self._log(f"Recommendation solve source: rescheduled plan, scenario={scenario}")
+        else:
+            scenario = "baseline_no_disruption"
+            previous = None
+            self._log("Recommendation solve source: baseline plan, scenario=baseline_no_disruption")
 
         self._start_solver_job(
             job_key="recommendation",
