@@ -239,6 +239,7 @@ class MainWindow(QMainWindow):
         self.order_summary_model = DataFrameModel()
         self.inventory_events_model = DataFrameModel()
         self.recommendations_model = DataFrameModel()
+        self.kpi_comparison_model = DataFrameModel()
 
         self.baseline_gantt = GanttWidget()
         self.reschedule_gantt = GanttWidget()
@@ -591,6 +592,7 @@ class MainWindow(QMainWindow):
         self.order_summary_table = self._table(self.order_summary_model)
         self.inventory_events_table = self._table(self.inventory_events_model)
         self.recommendations_table = self._table(self.recommendations_model)
+        self.kpi_comparison_table = self._table(self.kpi_comparison_model)
 
         self.tabs.addTab(self._wrap_scrollable(self.baseline_gantt), "Baseline Plan")
         self.tabs.addTab(self._wrap_scrollable(self.reschedule_gantt), "Rescheduled Plan")
