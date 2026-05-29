@@ -663,6 +663,7 @@ def solve_schedule(
     customer_tardiness_weight: int = 450,
     stock_tardiness_weight: int = 80,
     makespan_weight: int = 1,
+    enforce_kanban_constraints: bool = True,
 ) -> SolveResult:
     """Solve baseline or rescheduling scenario."""
     t0 = time.time()
@@ -692,6 +693,7 @@ def solve_schedule(
                 customer_tardiness_weight=customer_tardiness_weight,
                 stock_tardiness_weight=stock_tardiness_weight,
                 makespan_weight=makespan_weight,
+                enforce_kanban_constraints=enforce_kanban_constraints,
             )
             method = "CP-SAT"
         except Exception as exc:
@@ -743,6 +745,7 @@ def solve_schedule(
             "customer_tardiness_weight": customer_tardiness_weight,
             "stock_tardiness_weight": stock_tardiness_weight,
             "makespan_weight": makespan_weight,
+            "enforce_kanban_constraints": bool(enforce_kanban_constraints),
             "applied_recommendation_actions": len(applied_recommendation_actions),
             "applied_recommendation_actions_detail": "; ".join(applied_recommendation_actions),
             "replan_time": None if replan_time is None else str(replan_time),
@@ -751,6 +754,106 @@ def solve_schedule(
             "batches": int(operations["batch_id"].nunique()) if not operations.empty and "batch_id" in operations.columns else 0,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Hard Kanban/WIP constraints for CP-SAT
+# ---------------------------------------------------------------------------
+
+def _safe_int_quantity(value: Any, default: int = 0) -> int:
+    try:
+        if pd.isna(value):
+            return int(default)
+        return int(round(float(value)))
+    except Exception:
+        return int(default)
+
+
+def _kanban_policy_for_cp_sat(bundle: DataBundle) -> Optional[Dict[str, int]]:
+    """Return the aggregate Kanban policy used by the solver.
+
+    The current inventory projection models the post-PRESS buffer as one
+    aggregate item: KANBAN:WIP_BOARD. CP-SAT therefore enforces the same
+    aggregate WIP logic: PRESS completion adds quantity to the reservoir;
+    LACK start consumes quantity from it.
+    """
+    if bundle.inventory.empty:
+        return None
+    inv = bundle.inventory.copy()
+    if "location" not in inv.columns or "item_id" not in inv.columns:
+        return None
+
+    kanban = inv[inv["location"].astype(str).str.upper() == "KANBAN"].copy()
+    if kanban.empty:
+        return None
+
+    preferred = kanban[kanban["item_id"].astype(str) == "WIP_BOARD"]
+    row = (preferred if not preferred.empty else kanban).iloc[0]
+    initial_qty = _safe_int_quantity(row.get("initial_qty", 0), 0)
+    max_stock = _safe_int_quantity(row.get("max_stock", 0), 0)
+    safety_stock = _safe_int_quantity(row.get("safety_stock", 0), 0)
+    target_stock = _safe_int_quantity(row.get("target_stock", 0), 0)
+
+    if max_stock <= 0:
+        # No capacity configured: keep the old behavior instead of making the
+        # model infeasible because of a missing policy field.
+        return None
+
+    return {
+        "initial_qty": max(0, initial_qty),
+        "max_stock": max_stock,
+        "safety_stock": max(0, safety_stock),
+        "target_stock": max(0, target_stock),
+    }
+
+
+def _add_kanban_reservoir_constraints(
+    model: Any,
+    bundle: DataBundle,
+    operations: pd.DataFrame,
+    op_start: Dict[str, Any],
+    op_end: Dict[str, Any],
+) -> None:
+    """Constrain the post-PRESS Kanban/WIP buffer directly in CP-SAT.
+
+    This is the hard optimization version of the diagnostic inventory chart:
+
+        time 0           -> +initial WIP
+        end of PRESS op  -> +batch quantity
+        start of LACK op -> -batch quantity
+
+    The reservoir level is forced to stay between 0 and max_stock.
+    """
+    if operations.empty or not hasattr(model, "AddReservoirConstraint"):
+        return
+
+    policy = _kanban_policy_for_cp_sat(bundle)
+    if not policy:
+        return
+
+    max_stock = int(policy["max_stock"])
+    initial_qty = int(policy["initial_qty"])
+
+    times: List[Any] = [0]
+    changes: List[int] = [initial_qty]
+
+    for _, op in operations.iterrows():
+        op_id = str(op["operation_id"])
+        wc = str(op.get("work_center_id", op.get("machine_id", ""))).upper()
+        qty = _safe_int_quantity(op.get("quantity", 0), 0)
+        if qty <= 0:
+            continue
+        if wc == "PRESS" and op_id in op_end:
+            times.append(op_end[op_id])
+            changes.append(qty)
+        elif wc == "LACK" and op_id in op_start:
+            times.append(op_start[op_id])
+            changes.append(-qty)
+
+    if len(times) <= 1:
+        return
+
+    model.AddReservoirConstraint(times, changes, 0, max_stock)
 
 
 def _solve_cp_sat(
@@ -773,6 +876,7 @@ def _solve_cp_sat(
     customer_tardiness_weight: int = 450,
     stock_tardiness_weight: int = 80,
     makespan_weight: int = 1,
+    enforce_kanban_constraints: bool = True,
 ) -> Tuple[pd.DataFrame, str, Optional[float]]:
     assert cp_model is not None
     origin = _time_origin(bundle)
@@ -852,6 +956,9 @@ def _solve_cp_sat(
     for machine_id, intervals in intervals_by_machine.items():
         if intervals:
             model.AddNoOverlap(intervals)
+
+    if enforce_kanban_constraints:
+        _add_kanban_reservoir_constraints(model, bundle, operations, op_start, op_end)
 
     orders = bundle.orders.copy()
     order_weights = {

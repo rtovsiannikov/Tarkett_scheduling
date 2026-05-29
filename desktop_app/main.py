@@ -434,6 +434,15 @@ class MainWindow(QMainWindow):
         solver_layout.addWidget(QLabel("Makespan weight"), 11, 0)
         solver_layout.addWidget(self.makespan_weight, 11, 1)
 
+        self.enforce_kanban_constraints_check = QCheckBox("Hard Kanban/WIP constraints")
+        self.enforce_kanban_constraints_check.setChecked(True)
+        self.enforce_kanban_constraints_check.setToolTip(
+            "If enabled, CP-SAT keeps the KANBAN:WIP_BOARD buffer between 0 and max_stock "
+            "using a reservoir constraint. Disable only for diagnostic runs with intentionally "
+            "infeasible stock data."
+        )
+        solver_layout.addWidget(self.enforce_kanban_constraints_check, 12, 0, 1, 2)
+
         scenario_group = QGroupBox("Downtime / what-if scenario")
         scenario_layout = QVBoxLayout(scenario_group)
         self.scenario_combo = QComboBox()
@@ -1103,7 +1112,7 @@ class MainWindow(QMainWindow):
         self.solver_thread = None
         self.solver_worker = None
 
-    def _solve_kwargs(self) -> Dict[str, int]:
+    def _solve_kwargs(self) -> Dict[str, object]:
         return {
             "time_limit_seconds": int(self.time_limit.value()),
             "stability_shift_penalty_per_minute": int(self.shift_penalty.value()),
@@ -1116,6 +1125,11 @@ class MainWindow(QMainWindow):
             "customer_tardiness_weight": int(self.customer_tardiness_weight.value()),
             "stock_tardiness_weight": int(self.stock_tardiness_weight.value()),
             "makespan_weight": int(self.makespan_weight.value()),
+            "enforce_kanban_constraints": (
+                bool(self.enforce_kanban_constraints_check.isChecked())
+                if hasattr(self, "enforce_kanban_constraints_check")
+                else True
+            ),
         }
 
     def solve_baseline(self) -> None:
